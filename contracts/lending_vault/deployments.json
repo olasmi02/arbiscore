@@ -1,0 +1,14 @@
+{
+  "network": "arbitrumSepolia",
+  "chainId": 421614,
+  "deployedAt": "2026-09-22T23:28:00.367Z",
+  "contracts": {
+    "ArbiCreditVault": "0x36ecc282A0536368E6af1c2b6020bd210e916b90",
+    "StylusScoreEngine": "0x58Ba8a49d0A33ac334Bb7E65CD5c030DD19fAa8b",
+    "CreditImporter": "0x3b7AF3962eA7177e9cB22c67231a2E4360a22cB8",
+    "PriceOracle": "0xB17b872B2A7c675D72A614FCB8C260F4c398BcE2",
+    "USDG": "0xFFC95faa3d63Cde504a05B567C600B78C0b41892",
+    "MockWETH": "0x3234F280192CF69599A4272001AD76d1bfdCfbEf",
+    "SolidityScoreEngineBaseline": "0x3794B8E649E969Ca9f8c8E08B37bc8CF306b990e"
+  }
+}

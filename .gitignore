@@ -1,0 +1,26 @@
+﻿node_modules/
+.next/
+out/
+build/
+dist/
+target/
+Cargo.lock
+.env
+.env.local
+.DS_Store
+cache/
+artifacts/
+typechain/
+typechain-types/
+*.log
+*.tsbuildinfo
+
+# Local development / AI-agent workspace files (not part of the submission)
+.agents/
+.claude/
+ORIGINAL_REQUEST.md
+PROJECT.md
+TEST_INFRA.md
+TEST_READY.md
+test_e2e/
+frontend/scripts/

@@ -28,7 +28,7 @@ export function ActiveLoansTable() {
 
   return (
     <div className="rounded-xl bg-zinc-950/60 border border-zinc-800 overflow-hidden">
-      <div className="px-5 py-3.5 border-b border-zinc-800/80 flex items-center justify-between">
+      <div className="px-4 sm:px-5 py-3.5 border-b border-zinc-800/80 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
         <span className="text-xs font-mono uppercase tracking-wider text-zinc-300 font-semibold">
           Active Loans & Credit History ({loans.length})
         </span>
@@ -45,7 +45,52 @@ export function ActiveLoansTable() {
           </div>
         </div>
       ) : (
-        <div className="overflow-x-auto">
+        <>
+        {/* Phones: one card per loan, with the repay action always visible */}
+        <ul className="sm:hidden divide-y divide-zinc-800/60">
+          {loans.map((loan) => {
+            const isActive = loan.status === 'Active';
+            return (
+              <li key={loan.loanId} className="p-4 space-y-3 font-mono text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-white">#{loan.loanId}</span>
+                  <Badge variant={isActive ? 'warning' : loan.status === 'Repaid' ? 'success' : 'danger'} size="sm">
+                    {isActive ? 'Active' : loan.status === 'Repaid' ? '✓ Repaid' : 'Defaulted'}
+                  </Badge>
+                </div>
+                <dl className="grid grid-cols-2 gap-x-3 gap-y-2">
+                  <dt className="text-zinc-500">Principal</dt>
+                  <dd className="text-right text-white font-bold tabular-nums">
+                    ${loan.amountUSDG.toLocaleString()} {mkt.symbol}
+                  </dd>
+                  {isActive && loan.debtUSD !== undefined && (
+                    <>
+                      <dt className="text-zinc-500">Owed{loan.aprPercent !== undefined ? ` (${loan.aprPercent.toFixed(2)}% APR)` : ''}</dt>
+                      <dd className="text-right text-zinc-300 tabular-nums">${loan.debtUSD.toFixed(4)}</dd>
+                    </>
+                  )}
+                  <dt className="text-zinc-500">Collateral</dt>
+                  <dd className="text-right text-zinc-300 tabular-nums">{loan.collateralLockedETH.toFixed(4)} ETH</dd>
+                  <dt className="text-zinc-500">Due</dt>
+                  <dd className="text-right text-zinc-400">{loan.dueDateFormatted}</dd>
+                </dl>
+                {isActive && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => handleRepay(loan.loanId)}
+                    isLoading={txStatus.step === 'signing_approval' || txStatus.step === 'pending_action'}
+                    className="w-full font-mono text-xs"
+                  >
+                    Repay Loan
+                  </Button>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+
+        <div className="hidden sm:block overflow-x-auto">
           <table className="w-full text-left font-mono text-xs">
             <thead className="bg-zinc-900/60 border-b border-zinc-800/80 text-zinc-400 text-[10px] uppercase tracking-wider">
               <tr>
@@ -130,6 +175,7 @@ export function ActiveLoansTable() {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </div>
   );

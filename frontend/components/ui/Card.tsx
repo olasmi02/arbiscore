@@ -31,7 +31,10 @@ export function CardHeader({
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={clsx('px-5 py-4 border-b border-zinc-800/80 flex items-center justify-between', className)}
+      className={clsx(
+        'px-4 sm:px-5 py-4 border-b border-zinc-800/80 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between',
+        className
+      )}
       {...props}
     >
       {children}
@@ -45,7 +48,7 @@ export function CardContent({
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={clsx('p-5', className)} {...props}>
+    <div className={clsx('p-4 sm:p-5', className)} {...props}>
       {children}
     </div>
   );

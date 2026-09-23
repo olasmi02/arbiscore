@@ -41,8 +41,8 @@ export function CollateralCard() {
 
   return (
     <>
-      <div className="p-5 rounded-xl bg-zinc-950/60 border border-zinc-800 space-y-4">
-        <div className="flex items-center justify-between">
+      <div className="p-4 sm:p-5 rounded-xl bg-zinc-950/60 border border-zinc-800 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Database className="w-4 h-4 text-emerald-400" />
             <span className="text-xs font-mono uppercase tracking-wider text-zinc-300 font-semibold">
@@ -74,7 +74,7 @@ export function CollateralCard() {
         </div>
 
         {/* Metric Triplet */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {/* Total Deposited */}
           <div className="p-3.5 rounded-lg bg-zinc-900/60 border border-zinc-800">
             <div className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider mb-1">

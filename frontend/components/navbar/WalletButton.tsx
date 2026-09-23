@@ -20,9 +20,9 @@ export function WalletButton() {
 
   if (!mounted) {
     return (
-      <Button variant="secondary" size="sm" className="font-mono">
+      <Button variant="secondary" size="sm" className="font-mono whitespace-nowrap">
         <Wallet className="w-3.5 h-3.5 mr-1.5" />
-        Connect Wallet
+        Connect<span className="hidden sm:inline">&nbsp;Wallet</span>
       </Button>
     );
   }
@@ -35,9 +35,9 @@ export function WalletButton() {
         isLoading={isPending}
         onClick={() => connect({ connector: injected() })}
         leftIcon={<Wallet className="w-3.5 h-3.5" />}
-        className="font-mono text-xs shadow-sm"
+        className="font-mono text-xs shadow-sm whitespace-nowrap"
       >
-        Connect Wallet
+        Connect<span className="hidden sm:inline">&nbsp;Wallet</span>
       </Button>
     );
   }

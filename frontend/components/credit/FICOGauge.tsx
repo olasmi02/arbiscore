@@ -21,7 +21,7 @@ export function FICOGauge({ score }: FICOGaugeProps) {
 
   return (
     <div className="flex flex-col items-center justify-center relative w-full select-none">
-      <div className="relative w-full max-w-[320px] aspect-[280/175]">
+      <div className="relative w-full max-w-[320px] aspect-[280/160]">
         <svg
           viewBox="0 0 280 160"
           className="w-full h-full overflow-visible"
@@ -143,15 +143,16 @@ export function FICOGauge({ score }: FICOGaugeProps) {
           </text>
         </svg>
 
-        {/* Center Live Readout */}
-        <div className="absolute inset-x-0 bottom-1 flex flex-col items-center justify-center text-center">
+      </div>
+
+      {/* Live readout, below the dial so the needle never covers it */}
+      <div className="mt-2 flex flex-col items-center justify-center text-center">
           <div className="text-4xl font-extrabold tracking-tight text-white font-mono tabular-nums leading-none">
             {clampedScore}
           </div>
           <div className="text-[11px] font-mono text-zinc-400 mt-1 uppercase tracking-widest">
             FICO Credit Score
           </div>
-        </div>
       </div>
     </div>
   );

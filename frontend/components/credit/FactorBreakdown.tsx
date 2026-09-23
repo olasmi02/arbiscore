@@ -13,7 +13,7 @@ function Points({ value }: { value: number }) {
   return (
     <span
       className={clsx(
-        'text-xs font-mono font-bold tabular-nums',
+        'text-xs font-mono font-bold tabular-nums whitespace-nowrap',
         value > 0 ? 'text-emerald-400' : value < 0 ? 'text-rose-400' : 'text-zinc-500'
       )}
     >

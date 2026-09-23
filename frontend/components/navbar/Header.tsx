@@ -21,14 +21,14 @@ export function Header() {
 
   return (
     <header className="w-full border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur-md sticky top-0 z-30">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2 sm:gap-4">
         {/* Brand & Protocol Identity */}
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-zinc-900 border border-zinc-700/80 flex items-center justify-center text-white shadow-fintech">
             <ShieldCheck className="w-5 h-5 text-emerald-400" />
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="text-lg font-bold tracking-tight text-white">ArbiScore</span>
+            <span className="text-base sm:text-lg font-bold tracking-tight text-white">ArbiScore</span>
             <span className="text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700/60 hidden sm:inline-block">
               Stylus Risk Engine
             </span>
@@ -36,7 +36,7 @@ export function Header() {
         </div>
 
         {/* Center / Price Feed & Sandbox Mode Toggle */}
-        <div className="hidden md:flex items-center gap-4">
+        <div className="hidden xl:flex items-center gap-4">
           {/* Oracle ETH Price Ticker */}
           <div className="flex items-center gap-2 px-3 py-1 rounded-full border border-zinc-800/80 bg-zinc-900/60 text-xs font-mono">
             <span className="text-zinc-500 uppercase tracking-wider text-[10px]">Chainlink ETH / USD</span>
@@ -61,7 +61,18 @@ export function Header() {
         </div>
 
         {/* Right / Web3 Controls */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          {/* Compact sandbox toggle below xl, where the center strip is hidden */}
+          <button
+            onClick={() => setIsSandboxMode(!isSandboxMode)}
+            aria-label={`Judge sandbox ${isSandboxMode ? 'on' : 'off'}`}
+            className={`xl:hidden flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-[11px] font-mono ${
+              isSandboxMode ? 'bg-zinc-800 text-zinc-100 border-zinc-600' : 'bg-zinc-900/50 text-zinc-500 border-zinc-800'
+            }`}
+          >
+            <Sparkles className={`w-3.5 h-3.5 ${isSandboxMode ? 'text-amber-400' : 'text-zinc-500'}`} />
+            <span>{isSandboxMode ? 'Sandbox' : 'Live'}</span>
+          </button>
           <NetworkBadge />
 
           {/* Testnet faucets: test WETH collateral and test USDC here; real testnet USDG comes from Paxos */}

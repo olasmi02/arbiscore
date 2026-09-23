@@ -35,7 +35,7 @@ contract SolidityScoreEngine is IArbiScoreEngine {
     }
 
     address public override owner;
-    address public override vault;
+    mapping(address => bool) public override isVault;
     bool public override demoMode;
     mapping(address => Profile) private _profiles;
     address public override importer;
@@ -43,7 +43,7 @@ contract SolidityScoreEngine is IArbiScoreEngine {
     event ScoreCalculated(address indexed user, uint16 score, uint8 tier, uint16 collateralRatioBps);
     event LoanOpened(address indexed user, uint32 indexed historyIndex, uint64 amountUsd, uint64 dueTs);
     event LoanClosed(address indexed user, uint32 indexed historyIndex, bool liquidated);
-    event VaultAuthorized(address indexed vault);
+    event VaultSet(address indexed vault, bool authorized);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event DemoModeSet(bool enabled);
     event ImporterSet(address indexed importer);
@@ -53,20 +53,30 @@ contract SolidityScoreEngine is IArbiScoreEngine {
     error LoanNotOpen();
     error InvalidProfile();
     error DemoModeDisabled();
+    error HasOpenLoans();
 
     modifier onlyVaultOrOwner() {
-        if (msg.sender != vault && msg.sender != owner) revert Unauthorized();
+        if (!isVault[msg.sender] && msg.sender != owner) revert Unauthorized();
         _;
     }
 
+    /// Sets the owner and (if non-zero) authorizes a first lending vault. Demo mode starts off.
     function init(address ownerAddr, address vaultAddr) external override {
         address current = owner;
         if (current != address(0) && msg.sender != current) revert Unauthorized();
-        if (current == address(0)) demoMode = true;
         owner = ownerAddr;
-        vault = vaultAddr;
-        emit VaultAuthorized(vaultAddr);
+        if (vaultAddr != address(0)) {
+            isVault[vaultAddr] = true;
+            emit VaultSet(vaultAddr, true);
+        }
         emit OwnershipTransferred(current, ownerAddr);
+    }
+
+    /// Owner authorizes (or revokes) a lending market; several markets share one credit history.
+    function setVault(address vault, bool authorized) external override {
+        if (msg.sender != owner) revert Unauthorized();
+        isVault[vault] = authorized;
+        emit VaultSet(vault, authorized);
     }
 
     function setDemoMode(bool enabled) external override {
@@ -219,9 +229,14 @@ contract SolidityScoreEngine is IArbiScoreEngine {
         uint8[] memory statuses,
         uint32[] memory daysLate
     ) external override returns (uint16) {
-        if (msg.sender != owner && msg.sender != vault && msg.sender != importer) {
+        if (msg.sender != owner && !isVault[msg.sender] && msg.sender != importer) {
             if (msg.sender != user) revert Unauthorized();
             if (!demoMode) revert DemoModeDisabled();
+            // Self-service profiles may not rewrite history that backs a live loan
+            StoredLoan[] storage h = _profiles[user].history;
+            for (uint256 i = 0; i < h.length; ++i) {
+                if (h[i].status == ArbiScoreModel.LOAN_OPEN) revert HasOpenLoans();
+            }
         }
         uint256 n = amountsUsd.length;
         if (

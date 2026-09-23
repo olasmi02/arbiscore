@@ -4,9 +4,11 @@ import React, { useState } from 'react';
 import { useAccount } from 'wagmi';
 import { Card, CardHeader, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { MarketSwitcher } from '@/components/ui/MarketSwitcher';
 import { useMarketStats } from '@/hooks/useOnChainBorrower';
 import { useCreditVaultTx } from '@/hooks/useCreditVaultTx';
 import { useSandbox } from '@/lib/context/SandboxContext';
+import { useMarket } from '@/lib/context/MarketContext';
 import { USDG_FAUCET_URL } from '@/lib/web3/addresses';
 import { Landmark, ExternalLink } from 'lucide-react';
 
@@ -23,14 +25,19 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
   );
 }
 
-/** Lender side of the market: supply Paxos USDG, earn borrowers' interest (ERC-4626 asUSDG shares). */
+/**
+ * Lender side of the selected market: supply its stablecoin and earn the interest credit-scored
+ * borrowers pay (ERC-4626 shares). Markets share one credit engine.
+ */
 export function LendingPanel() {
   const { isConnected } = useAccount();
-  const { data: market, isLoading } = useMarketStats();
+  const { data: stats, isLoading } = useMarketStats();
+  const { market } = useMarket();
   const { liveAccount } = useSandbox();
-  const { supplyUSDG, withdrawAllUSDG, txStatus } = useCreditVaultTx();
+  const { supply, withdrawSupply, claimTestStable, txStatus } = useCreditVaultTx();
   const [amount, setAmount] = useState('10');
   const busy = txStatus.step !== 'idle' && txStatus.step !== 'confirmed' && txStatus.step !== 'failed';
+  const sym = market.symbol;
 
   return (
     <Card className="shadow-fintech">
@@ -40,32 +47,33 @@ export function LendingPanel() {
             <Landmark className="w-4 h-4 text-emerald-400" />
           </div>
           <div>
-            <h2 className="text-sm font-semibold text-white tracking-tight">USDG Lending Pool</h2>
+            <h2 className="text-sm font-semibold text-white tracking-tight">{market.label} Lending Pool</h2>
             <p className="text-[11px] text-zinc-400 font-mono">
-              Supply Paxos USDG • earn the interest credit-scored borrowers pay • ERC-4626 asUSDG shares
+              Supply {sym} • earn the interest credit-scored borrowers pay • ERC-4626 as{sym} shares
             </p>
           </div>
         </div>
+        <MarketSwitcher />
       </CardHeader>
 
       <CardContent className="space-y-5">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <Stat label="Total Supplied" value={market ? fmtUSD(market.totalAssetsUSD) : isLoading ? '…' : '—'} />
-          <Stat label="Available to Borrow" value={market ? fmtUSD(market.cashUSD) : '…'} />
-          <Stat label="Utilization" value={market ? fmtPct(market.utilization) : '…'} />
-          <Stat label="Supply APY" value={market ? fmtPct(market.supplyApr) : '…'} hint="loan-weighted APR × utilization" />
+          <Stat label="Total Supplied" value={stats ? fmtUSD(stats.totalAssetsUSD) : isLoading ? '…' : '—'} />
+          <Stat label="Available to Borrow" value={stats ? fmtUSD(stats.cashUSD) : '…'} />
+          <Stat label="Utilization" value={stats ? fmtPct(stats.utilization) : '…'} />
+          <Stat label="Supply APY" value={stats ? fmtPct(stats.supplyApr) : '…'} hint="loan-weighted APR × utilization" />
         </div>
 
         {!isConnected ? (
-          <p className="text-xs font-mono text-zinc-500">Connect a wallet on Arbitrum Sepolia to supply USDG.</p>
+          <p className="text-xs font-mono text-zinc-500">Connect a wallet on Arbitrum Sepolia to supply {sym}.</p>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-end">
             <div className="lg:col-span-5 grid grid-cols-2 gap-3">
               <Stat label="Your Supply" value={liveAccount ? fmtUSD(liveAccount.lender.suppliedUSD) : '…'} />
               <Stat
-                label="Wallet USDG"
-                value={liveAccount ? fmtUSD(liveAccount.wallet.usdg) : '…'}
-                hint={liveAccount && liveAccount.wallet.usdg === 0 ? 'get testnet USDG ↗' : undefined}
+                label={`Wallet ${sym}`}
+                value={liveAccount ? fmtUSD(liveAccount.wallet.stable) : '…'}
+                hint={liveAccount && liveAccount.wallet.stable === 0 ? `get test ${sym} below` : undefined}
               />
             </div>
             <div className="lg:col-span-7 flex flex-col sm:flex-row gap-2">
@@ -78,15 +86,15 @@ export function LendingPanel() {
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   className="w-full pl-7 pr-16 py-2 rounded-lg bg-zinc-950 border border-zinc-800 text-white font-mono text-sm focus:outline-none focus:border-zinc-600"
-                  aria-label="USDG amount to supply"
+                  aria-label={`${sym} amount to supply`}
                 />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 font-mono text-xs">USDG</span>
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 font-mono text-xs">{sym}</span>
               </div>
               <Button
                 variant="primary"
                 size="md"
                 disabled={busy || !(Number(amount) > 0)}
-                onClick={() => supplyUSDG(amount)}
+                onClick={() => supply(amount)}
                 className="font-mono text-xs"
               >
                 Supply
@@ -95,7 +103,7 @@ export function LendingPanel() {
                 variant="outline"
                 size="md"
                 disabled={busy || !liveAccount || liveAccount.lender.withdrawableUSD === 0}
-                onClick={() => withdrawAllUSDG()}
+                onClick={() => withdrawSupply()}
                 className="font-mono text-xs"
               >
                 Withdraw {liveAccount && liveAccount.lender.withdrawableUSD > 0 ? fmtUSD(liveAccount.lender.withdrawableUSD) : ''}
@@ -104,13 +112,28 @@ export function LendingPanel() {
           </div>
         )}
 
-        <p className="text-[11px] font-mono text-zinc-500 flex flex-wrap items-center gap-1">
-          Lenders can redeem idle cash at any time; lent-out funds return as loans are repaid. Bad debt from
-          under-collateralized liquidations is shared by lenders through the share price.
-          <a href={USDG_FAUCET_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 text-zinc-300 hover:text-white">
-            Paxos USDG faucet <ExternalLink className="w-3 h-3" />
-          </a>
-        </p>
+        <div className="text-[11px] font-mono text-zinc-500 flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span>
+            Lenders can redeem idle cash at any time; lent-out funds return as loans are repaid. Bad debt from
+            under-collateralized liquidations is shared by lenders through the share price.
+          </span>
+          {market.hasTokenFaucet ? (
+            isConnected && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => claimTestStable()}
+                className="text-zinc-300 hover:text-white underline underline-offset-2"
+              >
+                Claim 1,000 test {sym}
+              </button>
+            )
+          ) : (
+            <a href={USDG_FAUCET_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 text-zinc-300 hover:text-white">
+              Paxos USDG faucet <ExternalLink className="w-3 h-3" />
+            </a>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

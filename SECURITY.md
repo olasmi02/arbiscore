@@ -10,7 +10,8 @@ ArbiScore is a testnet buildathon project and has **not been audited**. This doc
 | **Wallet-hopping:** abandoning a bad history | A new wallet scores in the Subprime band and borrows at 150%, the same terms as standard DeFi. Throwing history away never gets better terms. |
 | **Erasing history via import** | `CreditImporter` only accepts wallets with **no** ArbiScore history, only the wallet itself can submit its attestation, and attestations expire after 1 hour. Existing records, including liquidations, are final. |
 | **Forged external history** | Attestations are EIP-712 signed by the attester key and verified on-chain. Tampered payloads, wrong signers and expired attestations are rejected (tested). |
-| **Self-declared profiles** | `setMockProfile` lets a wallet write its own history **only while demo mode is on**. The owner turns it off with `setDemoMode(false)`, after which only the vault and the importer can write. |
+| **Self-declared profiles** | `setMockProfile` lets a wallet write its own history **only while demo mode is on**, and never while it has an open loan (`HasOpenLoans`). Demo mode is **off** on the live engine, so only the owner, the vault and the importer can write. |
+| **Engine blocking settlement** | The vault records loan outcomes inside `try/catch`: if the engine ever rejects an update, repayment and liquidation still settle and `EngineSyncFailed` is emitted. |
 | **Unbounded gas** | Only the latest 64 loans are scored. |
 
 **Trust assumptions:**
@@ -27,14 +28,14 @@ ArbiScore is a testnet buildathon project and has **not been audited**. This doc
 | Share-inflation (donation) attack on the first lender | OpenZeppelin ERC-4626 with `_decimalsOffset() = 6` virtual shares. |
 | Lenders withdrawing funds that are lent out | `maxWithdraw` and `maxRedeem` are capped at idle cash. |
 | Stale or bad price | `ChainlinkPriceOracle` rejects prices ≤ 0, future timestamps, and data older than 24 hours. An optional L2 sequencer-uptime check (with a 1-hour grace period) activates when a feed address is configured; none exists on Arbitrum Sepolia yet. |
-| Admin abuse | The scoring engine and oracle are **immutable** in the vault. The owner can only `pause()`, which blocks new supply, collateral deposits and borrows; repay, withdrawals, redemptions and liquidations always stay open. |
+| Admin abuse | The scoring engine and oracle are **immutable** in each vault. Only markets the owner approves (`setVault`) can report loan outcomes. The owner can only `pause()`, which blocks new supply, collateral deposits and borrows; repay, withdrawals, redemptions and liquidations always stay open. |
 | Reentrancy | `nonReentrant` on every state-changing entry point, including the ERC-4626 `_deposit` and `_withdraw` hooks. External calls follow checks-effects-interactions; the engine is trusted and immutable. |
 | Engine `init` front-running | The deploy script claims ownership in the same run that activates the program, and fails if the owner isn't the deployer. |
 
 ## Testing
 
 - **Rust:** 11 tests, including 411 cross-implementation vectors, the wash-borrowing test, bounds checks and a no-float-opcode check on the WASM.
-- **Hardhat:** 32 tests, including the same 411 vectors against the Solidity port. They also cover liquidation economics, bad debt, pause behavior, oracle staleness and sequencer checks, and EIP-712 import rejection cases.
+- **Hardhat:** 35 tests, including the same 411 vectors against the Solidity port. They also cover liquidation economics, bad debt, pause behavior, oracle staleness and sequencer checks, and EIP-712 import rejection cases. Regression tests cover the engine refusing a history rewrite while a loan is open, settlement surviving an engine revert, and two markets sharing one credit engine.
 - **Invariant test:** 150 random actions (deposit, withdraw, borrow, repay, time jumps, price moves, liquidations) across three borrowers. After every step it checks:
   1. collateral held equals the sum of user collateral
   2. locked collateral never exceeds deposited collateral
@@ -59,7 +60,7 @@ Remaining findings, and why they're accepted:
 
 ## Known limitations
 
-- The WETH collateral is a test token with a public faucet. The borrow asset is real Paxos testnet USDG.
+- The WETH collateral is a test token with a public faucet. The USDG market uses real Paxos testnet USDG; the second market uses a faucet test USDC.
 - The model's coefficients are hand-calibrated, not fitted to default data.
-- The Stylus source isn't verified on Arbiscan, because we deploy a post-processed WASM rather than using `cargo stylus`.
+- The Stylus engine isn't Arbiscan-verified (we deploy a Binaryen-post-processed WASM rather than using `cargo stylus`). It is a reproducible build instead: `scripts/verifyStylusBytecode.ts` checks the on-chain program's SHA-256 against a local build.
 - The liquidation bonus for Prime borrowers is small (1.5%). On mainnet this may need tuning to keep liquidators interested.

@@ -45,7 +45,11 @@ describe("ArbiScore v2 model & engine", function () {
     });
 
     it("demo mode lets a user set only their own profile, and the owner can turn it off", async function () {
-      expect(await engine.demoMode()).to.equal(true);
+      expect(await engine.demoMode()).to.equal(false); // new engines start with demo mode off
+      await expect(
+        engine.connect(alice).setMockProfile(alice.address, 100, 25, 2000, [], [], [], [])
+      ).to.be.revertedWithCustomError(engine, "DemoModeDisabled");
+      await engine.setDemoMode(true);
       await engine.connect(alice).setMockProfile(alice.address, 100, 25, 2000, [600], [70], [1], [0]);
       expect(await engine.calculateScore(alice.address)).to.equal(655);
 

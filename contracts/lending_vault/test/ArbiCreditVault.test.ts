@@ -232,6 +232,70 @@ describe("ArbiCreditVault: two-sided USDG credit market", function () {
     });
   });
 
+  describe("The engine can never block settlement", function () {
+    beforeEach(async function () {
+      await vault.connect(prime).depositCollateral(ETH(3.5));
+      await vault.connect(prime).borrow(USDG(10_000));
+    });
+
+    it("rejects a borrower rewriting their own history while a loan is open (demo mode)", async function () {
+      await engine.setDemoMode(true);
+      await expect(
+        engine.connect(prime).setMockProfile(prime.address, 1, 1, 1, [], [], [], [])
+      ).to.be.revertedWithCustomError(engine, "HasOpenLoans");
+    });
+
+    it("still liquidates and repays when the engine rejects the outcome update", async function () {
+      // Owner wipes the history, so onLoanClosed(index) reverts inside the engine
+      await engine.setMockProfile(prime.address, 1, 1, 1, [], [], [], []);
+      await oracle.setEthPriceUSD(ETH(2000));
+      await expect(vault.connect(liquidator).liquidate(1))
+        .to.emit(vault, "EngineSyncFailed").withArgs(1, prime.address, true)
+        .and.to.emit(vault, "LoanLiquidated");
+
+      await oracle.setEthPriceUSD(PRICE);
+      await vault.connect(prime).depositCollateral(ETH(5));
+      await vault.connect(prime).borrow(USDG(1_000));
+      await engine.setMockProfile(prime.address, 1, 1, 1, [], [], [], []);
+      await expect(vault.connect(prime).repay(2)).to.emit(vault, "EngineSyncFailed").and.to.emit(vault, "LoanRepaid");
+      expect(await vault.userLockedCollateral(prime.address)).to.equal(0);
+    });
+  });
+
+  describe("Several markets share one credit engine", function () {
+    it("a repayment in one market improves terms in another; unapproved markets can't report", async function () {
+      const ERC20 = await ethers.getContractFactory("MockERC20");
+      const usdc = await ERC20.deploy("Test USD Coin", "USDC", 6);
+      const vault2 = await (await ethers.getContractFactory("ArbiCreditVault")).deploy(
+        await engine.getAddress(), await oracle.getAddress(), await usdc.getAddress(), await weth.getAddress()
+      );
+      // Not yet approved: borrowing fails because the engine rejects the loan report
+      await usdc.mint(lender.address, USDG(100_000));
+      await usdc.connect(lender).approve(await vault2.getAddress(), ethers.MaxUint256);
+      await vault2.connect(lender).deposit(USDG(100_000), lender.address);
+      await weth.connect(moderate).approve(await vault2.getAddress(), ethers.MaxUint256);
+      await vault2.connect(moderate).depositCollateral(ETH(10));
+      await expect(vault2.connect(moderate).borrow(USDG(1_000))).to.be.revertedWithCustomError(engine, "Unauthorized");
+
+      await expect(engine.connect(prime).setVault(await vault2.getAddress(), true)).to.be.revertedWithCustomError(engine, "Unauthorized");
+      await engine.setVault(await vault2.getAddress(), true);
+      expect(await vault2.symbol()).to.equal("asUSDC");
+
+      // Borrow + seasoned repayment in the USDC market...
+      const before = await vault.getBorrowQuote(moderate.address, USDG(10_000));
+      await vault2.connect(moderate).borrow(USDG(3_000));
+      await time.increase(15 * 86400);
+      await usdc.mint(moderate.address, USDG(100));
+      await usdc.connect(moderate).approve(await vault2.getAddress(), ethers.MaxUint256);
+      await vault2.connect(moderate).repay(1);
+      // ...raises the score (and can lower the collateral ratio) quoted by the USDG market
+      const after = await vault.getBorrowQuote(moderate.address, USDG(10_000));
+      expect(after.score).to.be.greaterThan(before.score);
+      expect(after.requiredRatioBps).to.be.lessThanOrEqual(before.requiredRatioBps);
+      expect(await engine.isVault(await vault2.getAddress())).to.equal(true);
+    });
+  });
+
   describe("Admin & safety", function () {
     it("pause blocks new supply/collateral/borrows but never repay, withdrawals or redemptions", async function () {
       await vault.connect(prime).depositCollateral(ETH(10));

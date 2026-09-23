@@ -3,13 +3,10 @@
 import React from 'react';
 import { useSandbox } from '@/lib/context/SandboxContext';
 import { Button } from '@/components/ui/Button';
-import { useAccount } from 'wagmi';
-import { useCreditVaultTx } from '@/hooks/useCreditVaultTx';
-import { ArrowUpRight, RotateCcw, AlertTriangle, CloudLightning, CheckCircle2, FastForward } from 'lucide-react';
+import { ArrowUpRight, RotateCcw, AlertTriangle, CheckCircle2, FastForward } from 'lucide-react';
 
 export function ActionSimulator() {
   const {
-    activePersona,
     simulateRepayment,
     simulateLiquidation,
     resetSimulation,
@@ -17,8 +14,6 @@ export function ActionSimulator() {
     simulationNotice,
   } = useSandbox();
 
-  const { isConnected } = useAccount();
-  const { syncPersonaOnChain, txStatus } = useCreditVaultTx();
 
   return (
     <div className="space-y-4">
@@ -81,28 +76,12 @@ export function ActionSimulator() {
         </Button>
       </div>
 
-      {/* On-Chain Wallet Sync (visible if connected) */}
-      {isConnected && (
-        <div className="p-3 rounded-lg bg-zinc-950/70 border border-zinc-800 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <CloudLightning className="w-4 h-4 text-sky-400 flex-shrink-0" />
-            <div className="text-xs font-mono text-zinc-300">
-              Write <strong className="text-white">{activePersona.name}</strong>&apos;s loan history to your wallet in the Stylus engine (demo mode), then turn the sandbox off to see the live on-chain score.
-            </div>
-          </div>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => syncPersonaOnChain(activePersona)}
-            isLoading={
-              txStatus.step === 'signing_action' || txStatus.step === 'pending_action'
-            }
-            className="font-mono text-xs flex-shrink-0"
-          >
-            Sync On-Chain
-          </Button>
-        </div>
-      )}
+      {/* Personas are simulated client-side with the same model the engine runs (bit-for-bit).
+          On-chain, new wallets bootstrap credit through the attested Aave import instead. */}
+      <p className="text-[11px] font-mono text-zinc-500">
+        Sandbox personas run in your browser on the exact model the Stylus engine uses. To go on-chain, turn the
+        sandbox off: a new wallet can import Aave history (or the labeled demo borrower) through CreditImporter.
+      </p>
 
       {/* Simulation Feedback Notice */}
       {simulationNotice && (

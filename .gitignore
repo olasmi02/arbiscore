@@ -4,7 +4,6 @@ out/
 build/
 dist/
 target/
-Cargo.lock
 .env
 .env.local
 .DS_Store

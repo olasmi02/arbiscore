@@ -8,6 +8,7 @@ interface BorrowSliderProps {
   value: number;
   onChange: (val: number) => void;
   min?: number;
+  symbol?: string;
   max?: number;
   step?: number;
 }
@@ -18,6 +19,7 @@ export function BorrowSlider({
   value,
   onChange,
   min = 100,
+  symbol = 'USDG',
   max = 50000,
   step = 50,
 }: BorrowSliderProps) {
@@ -34,7 +36,7 @@ export function BorrowSlider({
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <label className="text-xs font-mono uppercase tracking-wider text-zinc-400 font-semibold">
-          Desired Borrow Amount (USDG)
+          Desired Borrow Amount ({symbol})
         </label>
         <div className="flex items-center gap-1.5 self-start sm:self-auto">
           {(max <= 1_000 ? [1, 5, 10, 25, 50, 100] : PRESET_PILLS).filter((p) => p >= min && p <= max).map((pill) => (
@@ -70,7 +72,7 @@ export function BorrowSlider({
           className="w-full pl-8 pr-16 py-3 rounded-xl bg-zinc-950/80 border border-zinc-800 focus:border-zinc-600 focus:outline-none text-2xl font-bold font-mono text-white tabular-nums transition-colors"
         />
         <div className="absolute right-3.5 pointer-events-none text-zinc-500 font-mono text-xs font-semibold">
-          USDG
+          {symbol}
         </div>
       </div>
 

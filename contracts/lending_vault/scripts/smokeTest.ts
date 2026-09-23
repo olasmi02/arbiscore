@@ -3,10 +3,10 @@
  *   ATTEST_API=http://localhost:3000 npx hardhat run scripts/smokeTest.ts --network arbitrumSepolia
  *
  *  1. A fresh wallet scores 300 (Subprime) and is quoted 150% at the live Chainlink price.
- *  2. If the vault has USDG liquidity: borrow + instant repay pays interest and earns NO credit.
+ *  2. In each market with liquidity (USDG, test USDC): borrow + instant repay pays interest, earns NO credit.
  *  3. Portable credit: a real Aave V3 (Arbitrum One) borrower's history is attested by the API and
  *     imported on-chain through CreditImporter (EIP-712), then scored by the Stylus engine.
- *  4. Demo mode: the Alice persona scores exactly 812 on-chain, matching the TypeScript model.
+ *  4. The Alice persona, written by the owner (demo mode is off), scores exactly 812 on-chain.
  */
 import { ethers } from "hardhat";
 import * as fs from "fs";
@@ -54,21 +54,35 @@ async function main() {
   const expected = (5_000_000n * 10n ** 12n * 15000n * 10n ** 18n + 10_000n * price - 1n) / (10_000n * price);
   check(q.requiredRatioBps === 15000n && q.requiredCollateralWei === expected, `quote: $5 needs ${ethers.formatEther(q.requiredCollateralWei)} ETH at $${ethers.formatEther(price)}/ETH`);
 
-  console.log("\n[2] Borrow + instant repay (interest paid, no credit earned)");
-  const cash = await usdg.balanceOf(C.ArbiCreditVault);
-  if (cash < 5_000_000n) {
-    console.log(`  - skipped: vault has ${ethers.formatUnits(cash, 6)} USDG liquidity (run scripts/supply.ts after the faucet)`);
-  } else {
-    await send("borrow 5 USDG", vault.borrow(5_000_000n));
-    const ids = await vault.getUserLoanIds(u1.address);
+  console.log("\n[2] Borrow + instant repay in each liquid market (interest paid, no credit earned)");
+  const markets = [
+    { name: "USDG", vault: C.ArbiCreditVault, asset: C.USDG, faucet: false },
+    { name: "test USDC", vault: C.ArbiCreditVaultUSDC, asset: C.TestUSDC, faucet: true },
+  ].filter((m) => m.vault);
+  for (const m of markets) {
+    const token = (await ethers.getContractAt("MockERC20", m.asset)).connect(u1);
+    const mv = (await ethers.getContractAt("ArbiCreditVault", m.vault)).connect(u1);
+    const cash = await token.balanceOf(m.vault);
+    if (cash < 5_000_000n) {
+      console.log(`  - ${m.name}: skipped, pool has ${ethers.formatUnits(cash, 6)} liquidity`);
+      continue;
+    }
+    if (m.vault !== C.ArbiCreditVault) {
+      await send(`faucet 1 WETH (${m.name} market)`, weth.faucet(u1.address, ethers.parseEther("1")));
+      await send(`approve WETH (${m.name} market)`, weth.approve(m.vault, ethers.MaxUint256));
+      await send(`deposit 1 WETH (${m.name})`, mv.depositCollateral(ethers.parseEther("1")));
+    }
+    await send(`borrow 5 ${m.name}`, mv.borrow(5_000_000n));
+    const ids = await mv.getUserLoanIds(u1.address);
     const loanId = ids[ids.length - 1];
     const scoreOpen = Number(await engineRead.calculateScore(u1.address));
-    await send("approve USDG", usdg.connect(u1).approve(C.ArbiCreditVault, ethers.MaxUint256));
-    const debt = await vault.debtOf(loanId);
-    check(debt > 5_000_000n || debt === 5_000_000n, `debt ${ethers.formatUnits(debt, 6)} USDG (principal + interest)`);
-    // interest accrues until the repay block; the borrower holds exactly the 5 USDG borrowed, so top up 0.01 from deployer
-    await send("top-up 0.01 USDG for interest", usdg.connect(deployer).transfer(u1.address, 10_000n));
-    await send("repay", vault.repay(loanId));
+    const debt = await mv.debtOf(loanId);
+    check(debt >= 5_000_000n, `${m.name} debt ${ethers.formatUnits(debt, 6)} (principal + interest)`);
+    // interest accrues until the repay block: top up 0.01 for it
+    if (m.faucet) await send("faucet 0.01 test USDC", token.faucet(u1.address, 10_000n));
+    else await send("top-up 0.01 USDG", token.connect(deployer).transfer(u1.address, 10_000n));
+    await send(`approve ${m.name}`, token.approve(m.vault, ethers.MaxUint256));
+    await send(`repay (${m.name})`, mv.repay(loanId));
     const scoreAfter = Number(await engineRead.calculateScore(u1.address));
     check(scoreAfter <= scoreOpen + 1, `instant repay earned no credit (${scoreOpen} → ${scoreAfter})`);
   }
@@ -98,9 +112,9 @@ async function main() {
     }
   );
 
-  console.log("\n[4] Demo mode: Alice persona parity with the TypeScript model");
+  console.log("\n[4] Alice persona (written by the owner) parity with the TypeScript model");
   const u3 = await newWallet();
-  await send("setMockProfile(Alice)", engineRead.connect(u3).setMockProfile(
+  await send("setMockProfile(Alice) as owner", engineRead.connect(deployer).setMockProfile(
     u3.address, 540, 140, 48_000, ALICE.map((x) => x[0]), ALICE.map((x) => x[1]), ALICE.map((x) => x[2]), ALICE.map(() => 0)
   ));
   const [score, tier, ratio] = await engineRead.getScoreAndTier(u3.address);

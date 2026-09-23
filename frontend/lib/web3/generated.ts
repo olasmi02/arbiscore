@@ -413,6 +413,31 @@ export const ARBI_CREDIT_VAULT_ABI = [
       },
       {
         "indexed": false,
+        "internalType": "bool",
+        "name": "liquidated",
+        "type": "bool"
+      }
+    ],
+    "name": "EngineSyncFailed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "loanId",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "borrower",
+        "type": "address"
+      },
+      {
+        "indexed": false,
         "internalType": "uint256",
         "name": "principal",
         "type": "uint256"
@@ -2035,6 +2060,25 @@ export const STYLUS_ENGINE_ABI = [
     "inputs": [
       {
         "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
+    "name": "isVault",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
         "name": "user",
         "type": "address"
       },
@@ -2183,16 +2227,21 @@ export const STYLUS_ENGINE_ABI = [
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "vault",
-    "outputs": [
+    "inputs": [
       {
         "internalType": "address",
-        "name": "",
+        "name": "vault",
         "type": "address"
+      },
+      {
+        "internalType": "bool",
+        "name": "authorized",
+        "type": "bool"
       }
     ],
-    "stateMutability": "view",
+    "name": "setVault",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   }
 ] as const;

@@ -18,7 +18,8 @@ interface IArbiScoreEngine {
 
     function init(address ownerAddr, address vaultAddr) external;
     function owner() external view returns (address);
-    function vault() external view returns (address);
+    function isVault(address account) external view returns (bool);
+    function setVault(address vault, bool authorized) external;
     function demoMode() external view returns (bool);
     function setDemoMode(bool enabled) external;
     function importer() external view returns (address);

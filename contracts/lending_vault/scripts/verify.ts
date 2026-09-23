@@ -17,6 +17,8 @@ const SOURCIFY = "https://sourcify.dev/server";
 
 const targets = [
   { fqn: "contracts/ArbiCreditVault.sol:ArbiCreditVault", address: C.ArbiCreditVault, args: [C.StylusScoreEngine, C.PriceOracle, C.USDG, C.MockWETH] },
+  { fqn: "contracts/ArbiCreditVault.sol:ArbiCreditVault", address: C.ArbiCreditVaultUSDC, args: [C.StylusScoreEngine, C.PriceOracle, C.TestUSDC, C.MockWETH] },
+  { fqn: "contracts/mocks/MockERC20.sol:MockERC20", address: C.TestUSDC, args: ["Test USD Coin (ArbiScore)", "USDC", 6] },
   { fqn: "contracts/CreditImporter.sol:CreditImporter", address: C.CreditImporter, args: [C.StylusScoreEngine, ATTESTER] },
   { fqn: "contracts/ChainlinkPriceOracle.sol:ChainlinkPriceOracle", address: C.PriceOracle, args: [ETH_USD_FEED, "0x0000000000000000000000000000000000000000", 24 * 3600] },
   { fqn: "contracts/mocks/MockERC20.sol:MockERC20", address: C.MockWETH, args: ["Wrapped Ether (ArbiScore test)", "WETH", 18] },

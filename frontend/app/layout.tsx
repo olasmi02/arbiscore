@@ -3,6 +3,7 @@ import './globals.css';
 import { Web3Provider } from '@/lib/context/Web3Provider';
 import { SandboxProvider } from '@/lib/context/SandboxContext';
 import { TxProvider } from '@/lib/context/TxContext';
+import { MarketProvider } from '@/lib/context/MarketContext';
 import { WrongNetworkBanner } from '@/components/web3/WrongNetworkBanner';
 
 export const metadata: Metadata = {
@@ -21,10 +22,12 @@ export default function RootLayout({
       <body className="min-h-screen bg-[#09090b] text-[#fafafa] antialiased selection:bg-zinc-800 selection:text-white">
         <Web3Provider>
           <TxProvider>
-            <SandboxProvider>
-            <WrongNetworkBanner />
-            {children}
-            </SandboxProvider>
+            <MarketProvider>
+              <SandboxProvider>
+                <WrongNetworkBanner />
+                {children}
+              </SandboxProvider>
+            </MarketProvider>
           </TxProvider>
         </Web3Provider>
       </body>

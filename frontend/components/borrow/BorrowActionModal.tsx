@@ -1,5 +1,6 @@
 'use client';
 
+import { useMarket } from '@/lib/context/MarketContext';
 import React, { useState } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
@@ -18,7 +19,8 @@ interface BorrowActionModalProps {
 export function BorrowActionModal({ isOpen, onClose, quote }: BorrowActionModalProps) {
   const { isSandboxMode, borrowSimulationLoan, collateralState } = useSandbox();
   const { isConnected } = useAccount();
-  const { borrowUSDG, txStatus } = useCreditVaultTx(() => {
+  const { market: mkt } = useMarket();
+  const { borrow, txStatus } = useCreditVaultTx(() => {
     onClose();
   });
 
@@ -37,7 +39,7 @@ export function BorrowActionModal({ isOpen, onClose, quote }: BorrowActionModalP
         onClose();
       }, 500);
     } else {
-      await borrowUSDG(quote.borrowAmountUSD.toString());
+      await borrow(quote.borrowAmountUSD.toString());
     }
   };
 
@@ -45,7 +47,7 @@ export function BorrowActionModal({ isOpen, onClose, quote }: BorrowActionModalP
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Originate Dynamic USDG Loan"
+      title={`Originate ${mkt.label} Loan`}
       description="Review on-chain credit terms and execute borrow via ArbiCreditVault"
     >
       <div className="space-y-5">
@@ -54,7 +56,7 @@ export function BorrowActionModal({ isOpen, onClose, quote }: BorrowActionModalP
           <div className="p-3 flex items-center justify-between">
             <span className="text-zinc-400">Borrow Amount</span>
             <span className="text-white font-bold text-sm tabular-nums">
-              ${quote.borrowAmountUSD.toLocaleString()} USDG
+              ${quote.borrowAmountUSD.toLocaleString()} {mkt.symbol}
             </span>
           </div>
 

@@ -1,5 +1,7 @@
 'use client';
 
+import { useMarket } from '@/lib/context/MarketContext';
+import { MarketSwitcher } from '@/components/ui/MarketSwitcher';
 import React, { useState } from 'react';
 import { Card, CardHeader, CardContent } from '@/components/ui/Card';
 import { BorrowSlider } from './BorrowSlider';
@@ -24,10 +26,11 @@ export function BorrowModule({ persona }: BorrowModuleProps) {
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
 
   const { isLiveMode } = useSandbox();
-  const { data: market } = useMarketStats();
-  const price = market?.ethPriceUSD ?? 3000;
-  const pool = isLiveMode && market ? market : SANDBOX_POOL;
-  // Live: loans are limited by real USDG liquidity in the pool
+  const { data: stats } = useMarketStats();
+  const { market: mkt } = useMarket();
+  const price = stats?.ethPriceUSD ?? 3000;
+  const pool = isLiveMode && stats ? stats : SANDBOX_POOL;
+  // Live: loans are limited by the selected market's real liquidity
   const limits = isLiveMode ? { min: 1, max: Math.max(1, Math.floor(pool.cashUSD)) } : { min: 100, max: 50_000 };
 
   const base = calculateBorrowQuote(borrowAmount, persona.score, price, limits);
@@ -49,14 +52,15 @@ export function BorrowModule({ persona }: BorrowModuleProps) {
               Dynamic Borrow Calculator & Capital Efficiency
             </h2>
             <p className="text-[11px] text-zinc-400 font-mono">
-              {market ? 'Live Chainlink ETH/USD' : 'Reference $3,000 / ETH'} • borrow Paxos USDG
-              {isLiveMode && market && ` • ${market.cashUSD.toLocaleString(undefined, { maximumFractionDigits: 2 })} USDG available`}
+              {stats ? 'Live Chainlink ETH/USD' : 'Reference $3,000 / ETH'} • borrow {mkt.label}
+              {isLiveMode && stats && ` • ${stats.cashUSD.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${mkt.symbol} available`}
             </p>
           </div>
         </div>
 
-        <div className="text-xs font-mono text-zinc-400">
-          Target Ratio: <span className="font-bold text-white">{quote.requiredRatioPercent}%</span>
+        <div className="flex items-center gap-3 text-xs font-mono text-zinc-400">
+          <MarketSwitcher />
+          <span>Target Ratio: <span className="font-bold text-white">{quote.requiredRatioPercent}%</span></span>
         </div>
       </CardHeader>
 
@@ -66,6 +70,7 @@ export function BorrowModule({ persona }: BorrowModuleProps) {
           <div className="lg:col-span-7 flex flex-col justify-between p-6 rounded-xl bg-zinc-950/40 border border-zinc-800/80">
             <BorrowSlider
               value={quote.borrowAmountUSD}
+              symbol={mkt.symbol}
               onChange={setBorrowAmount}
               min={limits.min}
               max={Math.max(limits.min + 1, limits.max)}
@@ -91,7 +96,7 @@ export function BorrowModule({ persona }: BorrowModuleProps) {
               </div>
               <div className="p-2.5 rounded-lg bg-zinc-900/60 border border-zinc-800">
                 <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Borrow Asset</div>
-                <div className="text-sm font-bold text-emerald-400">USDG (Paxos)</div>
+                <div className="text-sm font-bold text-emerald-400">{mkt.label}</div>
               </div>
             </div>
           </div>

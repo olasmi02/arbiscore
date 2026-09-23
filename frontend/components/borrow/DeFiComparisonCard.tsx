@@ -1,5 +1,6 @@
 'use client';
 
+import { useMarket } from '@/lib/context/MarketContext';
 import React from 'react';
 import { BorrowQuote } from '@/lib/types';
 import { ArrowUpRight, TrendingUp, Sparkles, Check, Lock, Unlock } from 'lucide-react';
@@ -11,6 +12,7 @@ interface DeFiComparisonCardProps {
 }
 
 export function DeFiComparisonCard({ quote, onOpenBorrowModal }: DeFiComparisonCardProps) {
+  const { market: mkt } = useMarket();
   const isPrimeOrNearPrime = quote.tierName === 'Prime' || quote.tierName === 'Near-Prime';
   const hasSavings = quote.collateralSavedETH > 0;
 
@@ -141,7 +143,7 @@ export function DeFiComparisonCard({ quote, onOpenBorrowModal }: DeFiComparisonC
         rightIcon={<ArrowUpRight className="w-4 h-4" />}
         className="w-full font-mono text-sm shadow-md"
       >
-        Borrow ${quote.borrowAmountUSD.toLocaleString()} USDG
+        Borrow ${quote.borrowAmountUSD.toLocaleString()} {mkt.symbol}
       </Button>
     </div>
   );

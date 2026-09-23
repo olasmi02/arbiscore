@@ -11,7 +11,7 @@ import { ImportCreditCard } from '@/components/credit/ImportCreditCard';
 import { TransactionModal } from '@/components/web3/TransactionModal';
 import { useSandbox } from '@/lib/context/SandboxContext';
 import { useCreditVaultTx } from '@/hooks/useCreditVaultTx';
-import { CONTRACT_ADDRESSES } from '@/lib/web3/addresses';
+import { CONTRACT_ADDRESSES, MARKETS, AVAILABLE_MARKETS } from '@/lib/web3/addresses';
 import { ExternalLink, ShieldCheck, Cpu, Terminal, Layers } from 'lucide-react';
 
 export default function DashboardPage() {
@@ -41,7 +41,7 @@ export default function DashboardPage() {
             <p className="text-xs sm:text-sm text-zinc-400 mt-1 max-w-2xl">
               A credit model over your repayment history, running in Rust on{' '}
               <strong className="text-zinc-200">Arbitrum Stylus</strong>. Borrow{' '}
-              <strong className="text-zinc-200">Paxos USDG</strong> with as little as{' '}
+              <strong className="text-zinc-200">Paxos USDG</strong> (or test USDC) with as little as{' '}
               <strong className="text-emerald-400 font-mono">105% collateral</strong>, or lend it to earn interest.
             </p>
           </div>
@@ -90,18 +90,21 @@ export default function DashboardPage() {
               ArbiScore Protocol
             </span>
             <span>•</span>
-            <span>Stylus credit engine • USDG credit market</span>
+            <span>Stylus credit engine • USDG &amp; USDC credit markets</span>
           </div>
 
           <div className="flex flex-wrap items-center gap-4 text-[11px]">
-            <a
-              href={`https://sepolia.arbiscan.io/address/${CONTRACT_ADDRESSES.vault}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-zinc-300 flex items-center gap-1 transition-colors"
-            >
-              Vault Contract <ExternalLink className="w-3 h-3" />
-            </a>
+            {AVAILABLE_MARKETS.map((m) => (
+              <a
+                key={m.id}
+                href={`https://sepolia.arbiscan.io/address/${m.vault}#code`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-zinc-300 flex items-center gap-1 transition-colors"
+              >
+                {m.symbol} Vault <ExternalLink className="w-3 h-3" />
+              </a>
+            ))}
             <a
               href={`https://sepolia.arbiscan.io/address/${CONTRACT_ADDRESSES.stylusEngine}`}
               target="_blank"
@@ -111,7 +114,7 @@ export default function DashboardPage() {
               Stylus Score Contract <ExternalLink className="w-3 h-3" />
             </a>
             <a
-              href={`https://sepolia.arbiscan.io/address/${CONTRACT_ADDRESSES.usdg}`}
+              href={`https://sepolia.arbiscan.io/address/${MARKETS.USDG.asset}`}
               target="_blank"
               rel="noopener noreferrer"
               className="hover:text-zinc-300 flex items-center gap-1 transition-colors"

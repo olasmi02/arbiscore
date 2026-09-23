@@ -21,7 +21,7 @@ sol_storage! {
     #[entrypoint]
     pub struct ArbiScoreEngine {
         address owner;
-        address vault;
+        mapping(address => bool) vaults;
         bool demo_mode;
         mapping(address => BorrowerProfile) profiles;
         address importer;
@@ -54,7 +54,7 @@ sol! {
     event ScoreCalculated(address indexed user, uint16 score, uint8 tier, uint16 collateralRatioBps);
     event LoanOpened(address indexed user, uint32 indexed historyIndex, uint64 amountUsd, uint64 dueTs);
     event LoanClosed(address indexed user, uint32 indexed historyIndex, bool liquidated);
-    event VaultAuthorized(address indexed vault);
+    event VaultSet(address indexed vault, bool authorized);
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event DemoModeSet(bool enabled);
     event ImporterSet(address indexed importer);
@@ -86,6 +86,7 @@ sol! {
     error LoanNotOpen();
     error InvalidProfile();
     error DemoModeDisabled();
+    error HasOpenLoans();
 }
 
 #[derive(SolidityError)]
@@ -95,6 +96,7 @@ pub enum ScoreEngineError {
     LoanNotOpen(LoanNotOpen),
     InvalidProfile(InvalidProfile),
     DemoModeDisabled(DemoModeDisabled),
+    HasOpenLoans(HasOpenLoans),
 }
 
 fn cap_u64(v: U256) -> u64 {
@@ -122,7 +124,7 @@ fn u48(v: u64) -> U48 {
 impl ArbiScoreEngine {
     fn only_vault_or_owner(&self) -> Result<(), ScoreEngineError> {
         let caller = self.vm().msg_sender();
-        if caller != self.vault.get() && caller != self.owner.get() {
+        if !self.vaults.get(caller) && caller != self.owner.get() {
             return Err(ScoreEngineError::Unauthorized(Unauthorized {}));
         }
         Ok(())
@@ -173,19 +175,29 @@ impl ArbiScoreEngine {
 
 #[public]
 impl ArbiScoreEngine {
-    /// Initializes owner and authorized vault addresses. Enables demo mode on first init.
+    /// Sets the owner and (if non-zero) authorizes a first lending vault. Demo mode starts off.
     pub fn init(&mut self, owner_addr: Address, vault_addr: Address) -> Result<(), ScoreEngineError> {
         let current_owner = self.owner.get();
         if current_owner != Address::ZERO && self.vm().msg_sender() != current_owner {
             return Err(ScoreEngineError::Unauthorized(Unauthorized {}));
         }
-        if current_owner == Address::ZERO {
-            self.demo_mode.set(true);
-        }
         self.owner.set(owner_addr);
-        self.vault.set(vault_addr);
-        self.vm().log(VaultAuthorized { vault: vault_addr });
+        if vault_addr != Address::ZERO {
+            self.vaults.setter(vault_addr).set(true);
+            self.vm().log(VaultSet { vault: vault_addr, authorized: true });
+        }
         self.vm().log(OwnershipTransferred { previousOwner: current_owner, newOwner: owner_addr });
+        Ok(())
+    }
+
+    /// Owner authorizes (or revokes) a lending market that reports loan outcomes. Several markets
+    /// can share one credit history: a repayment in any of them counts everywhere.
+    pub fn set_vault(&mut self, vault: Address, authorized: bool) -> Result<(), ScoreEngineError> {
+        if self.vm().msg_sender() != self.owner.get() {
+            return Err(ScoreEngineError::Unauthorized(Unauthorized {}));
+        }
+        self.vaults.setter(vault).set(authorized);
+        self.vm().log(VaultSet { vault, authorized });
         Ok(())
     }
 
@@ -193,8 +205,8 @@ impl ArbiScoreEngine {
         Ok(self.owner.get())
     }
 
-    pub fn vault(&self) -> Result<Address, ScoreEngineError> {
-        Ok(self.vault.get())
+    pub fn is_vault(&self, account: Address) -> Result<bool, ScoreEngineError> {
+        Ok(self.vaults.get(account))
     }
 
     pub fn demo_mode(&self) -> Result<bool, ScoreEngineError> {
@@ -343,13 +355,20 @@ impl ArbiScoreEngine {
         days_late: Vec<u32>,
     ) -> Result<u16, ScoreEngineError> {
         let caller = self.vm().msg_sender();
-        let privileged = caller == self.owner.get() || caller == self.vault.get() || caller == self.importer.get();
+        let privileged = caller == self.owner.get() || self.vaults.get(caller) || caller == self.importer.get();
         if !privileged {
             if caller != user {
                 return Err(ScoreEngineError::Unauthorized(Unauthorized {}));
             }
             if !self.demo_mode.get() {
                 return Err(ScoreEngineError::DemoModeDisabled(DemoModeDisabled {}));
+            }
+            // Self-service profiles may not rewrite history that backs a live loan
+            let h = &self.profiles.getter(user).history;
+            for i in 0..h.len() {
+                if h.getter(i).is_some_and(|e| e.status.get().to::<u8>() == LOAN_OPEN) {
+                    return Err(ScoreEngineError::HasOpenLoans(HasOpenLoans {}));
+                }
             }
         }
         let n = amounts_usd.len();

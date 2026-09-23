@@ -6,6 +6,7 @@ import { WalletButton } from './WalletButton';
 import { ShieldCheck, Coins, Sparkles, ExternalLink } from 'lucide-react';
 import { useMarketStats } from '@/hooks/useOnChainBorrower';
 import { USDG_FAUCET_URL } from '@/lib/web3/addresses';
+import { useMarket } from '@/lib/context/MarketContext';
 import { useSandbox } from '@/lib/context/SandboxContext';
 import { useAccount } from 'wagmi';
 import { useCreditVaultTx } from '@/hooks/useCreditVaultTx';
@@ -14,7 +15,8 @@ import { Button } from '@/components/ui/Button';
 export function Header() {
   const { isSandboxMode, setIsSandboxMode } = useSandbox();
   const { isConnected } = useAccount();
-  const { claimTestWeth, txStatus } = useCreditVaultTx();
+  const { claimTestWeth, claimTestStable, txStatus } = useCreditVaultTx();
+  const { market: mkt } = useMarket();
   const { data: market } = useMarketStats();
 
   return (
@@ -62,7 +64,7 @@ export function Header() {
         <div className="flex items-center gap-3">
           <NetworkBadge />
 
-          {/* Testnet faucets: test WETH collateral here, real testnet USDG from Paxos */}
+          {/* Testnet faucets: test WETH collateral and test USDC here; real testnet USDG comes from Paxos */}
           {isConnected && (
             <>
               <Button
@@ -75,14 +77,25 @@ export function Header() {
               >
                 Test WETH
               </Button>
-              <a
-                href={USDG_FAUCET_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hidden lg:inline-flex items-center gap-1 text-xs font-mono text-zinc-400 hover:text-zinc-200 transition-colors"
-              >
-                Get USDG <ExternalLink className="w-3 h-3" />
-              </a>
+              {mkt.hasTokenFaucet ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => claimTestStable()}
+                  className="hidden lg:inline-flex text-xs font-mono"
+                >
+                  Test {mkt.symbol}
+                </Button>
+              ) : (
+                <a
+                  href={USDG_FAUCET_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hidden lg:inline-flex items-center gap-1 text-xs font-mono text-zinc-400 hover:text-zinc-200 transition-colors"
+                >
+                  Get USDG <ExternalLink className="w-3 h-3" />
+                </a>
+              )}
             </>
           )}
 

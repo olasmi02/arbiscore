@@ -77,6 +77,8 @@ contract ArbiCreditVault is ERC4626, IArbiCreditVault, ReentrancyGuard, Pausable
         uint16 creditScore
     );
     event LoanRepaid(uint256 indexed loanId, address indexed borrower, uint256 principal, uint256 interest, bool onTime);
+    /// The engine rejected a loan-outcome update; repayment/liquidation still completed.
+    event EngineSyncFailed(uint256 indexed loanId, address indexed borrower, bool liquidated);
     event LoanLiquidated(
         uint256 indexed loanId,
         address indexed borrower,
@@ -305,8 +307,17 @@ contract ArbiCreditVault is ERC4626, IArbiCreditVault, ReentrancyGuard, Pausable
         _closeAccounting(loan);
         loan.isRepaid = true;
 
-        scoreEngine.onLoanClosed(loan.borrower, loan.engineIndex, false);
+        _recordOutcome(loanId, loan, false);
         emit LoanRepaid(loanId, loan.borrower, loan.principal, interest, block.timestamp <= loan.dueDate);
+    }
+
+    /// @dev Credit reporting must never block repayment or liquidation: if the engine reverts
+    /// (e.g. the borrower's history was altered), the loan still settles and the failure is logged.
+    function _recordOutcome(uint256 loanId, LoanRecord storage loan, bool liquidated) internal {
+        try scoreEngine.onLoanClosed(loan.borrower, loan.engineIndex, liquidated) {}
+        catch {
+            emit EngineSyncFailed(loanId, loan.borrower, liquidated);
+        }
     }
 
     // =====================================================================
@@ -351,7 +362,7 @@ contract ArbiCreditVault is ERC4626, IArbiCreditVault, ReentrancyGuard, Pausable
         userCollateral[loan.borrower] -= seize; // the unseized remainder stays as free collateral
         collateralToken.safeTransfer(msg.sender, seize);
 
-        scoreEngine.onLoanClosed(loan.borrower, loan.engineIndex, true);
+        _recordOutcome(loanId, loan, true);
         emit LoanLiquidated(loanId, loan.borrower, msg.sender, repayAmount, seize, badDebt);
     }
 

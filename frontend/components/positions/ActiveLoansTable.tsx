@@ -1,5 +1,6 @@
 'use client';
 
+import { useMarket } from '@/lib/context/MarketContext';
 import React from 'react';
 import { useSandbox } from '@/lib/context/SandboxContext';
 import { useAccount } from 'wagmi';
@@ -13,6 +14,7 @@ export function ActiveLoansTable() {
   const { isSandboxMode, activePersona, repaySimulationLoan } = useSandbox();
   const { isConnected } = useAccount();
   const { repayLoan, txStatus } = useCreditVaultTx();
+  const { market: mkt } = useMarket();
 
   const handleRepay = async (loanId: number) => {
     if (isSandboxMode || !isConnected) {
@@ -71,7 +73,7 @@ export function ActiveLoansTable() {
                       #{loan.loanId}
                     </td>
                     <td className="px-4 py-3 font-bold text-white tabular-nums">
-                      ${loan.amountUSDG.toLocaleString()} USDG
+                      ${loan.amountUSDG.toLocaleString()} {mkt.symbol}
                     </td>
                     <td className="px-4 py-3 text-zinc-300 tabular-nums">
                       {isActive && loan.debtUSD !== undefined ? `$${loan.debtUSD.toFixed(4)}` : '—'}

@@ -3,19 +3,21 @@
 import { useAccount, usePublicClient, useWalletClient } from 'wagmi';
 import { parseEther, parseUnits, maxUint256, type Hash } from 'viem';
 import { CONTRACT_ADDRESSES } from '@/lib/web3/addresses';
-import { ARBI_CREDIT_VAULT_ABI, CREDIT_IMPORTER_ABI, ERC20_ABI, STYLUS_ENGINE_ABI } from '@/lib/web3/abis';
-import { BorrowerPersona } from '@/lib/types';
+import { ARBI_CREDIT_VAULT_ABI, CREDIT_IMPORTER_ABI, ERC20_ABI } from '@/lib/web3/abis';
 import { useTxContext } from '@/lib/context/TxContext';
+import { useMarket } from '@/lib/context/MarketContext';
 
 export type { TxLifecycleStep, TxStatusState } from '@/lib/context/TxContext';
 
-const USDG_DECIMALS = 6;
+const STABLE_DECIMALS = 6; // USDG and test USDC
 
 export function useCreditVaultTx(onSuccessCallback?: () => void) {
   const { address } = useAccount();
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
   const { txStatus, setTxStatus, resetTx } = useTxContext();
+  const { market } = useMarket();
+  const sym = market.symbol;
 
   const ready = Boolean(address && walletClient && publicClient);
 
@@ -25,7 +27,7 @@ export function useCreditVaultTx(onSuccessCallback?: () => void) {
       address: token,
       abi: ERC20_ABI,
       functionName: 'allowance',
-      args: [address!, CONTRACT_ADDRESSES.vault],
+      args: [address!, market.vault],
     });
     if (allowance >= amount) return;
     setTxStatus({ step: 'signing_approval', actionTitle: `Approve ${label}` });
@@ -33,7 +35,7 @@ export function useCreditVaultTx(onSuccessCallback?: () => void) {
       address: token,
       abi: ERC20_ABI,
       functionName: 'approve',
-      args: [CONTRACT_ADDRESSES.vault, maxUint256],
+      args: [market.vault, maxUint256],
     });
     setTxStatus({ step: 'pending_approval', actionTitle: `Approving ${label}...`, approvalHash: hash });
     await publicClient!.waitForTransactionReceipt({ hash });
@@ -66,7 +68,7 @@ export function useCreditVaultTx(onSuccessCallback?: () => void) {
   };
 
   const vaultWrite = (functionName: string, args: readonly unknown[]) =>
-    walletClient!.writeContract({ address: CONTRACT_ADDRESSES.vault, abi: ARBI_CREDIT_VAULT_ABI, functionName, args } as any);
+    walletClient!.writeContract({ address: market.vault, abi: ARBI_CREDIT_VAULT_ABI, functionName, args } as any);
 
   // --- Collateral ---
   const depositCollateral = (amountETH: string) => {
@@ -83,7 +85,7 @@ export function useCreditVaultTx(onSuccessCallback?: () => void) {
       { sign: 'Withdraw Free Collateral', pending: 'Releasing WETH from Escrow...', done: 'Collateral Withdrawn!', failed: 'Withdrawal Failed' },
       async () => {
         const free = await publicClient!.readContract({
-          address: CONTRACT_ADDRESSES.vault,
+          address: market.vault,
           abi: ARBI_CREDIT_VAULT_ABI,
           functionName: 'getFreeCollateral',
           args: [address!],
@@ -94,10 +96,10 @@ export function useCreditVaultTx(onSuccessCallback?: () => void) {
     );
 
   // --- Borrowing ---
-  const borrowUSDG = (amountUSD: string) =>
+  const borrow = (amountUSD: string) =>
     run(
-      { sign: 'Initiate USDG Borrow', pending: 'Originating USDG Loan...', done: 'Loan Originated!', failed: 'Borrow Failed' },
-      () => vaultWrite('borrow', [parseUnits(amountUSD, USDG_DECIMALS)])
+      { sign: `Borrow ${sym}`, pending: `Originating ${sym} loan...`, done: 'Loan Originated!', failed: 'Borrow Failed' },
+      () => vaultWrite('borrow', [parseUnits(amountUSD, STABLE_DECIMALS)])
     );
 
   /** Repays principal + interest. Interest accrues until the tx is mined, so approve with headroom. */
@@ -107,31 +109,31 @@ export function useCreditVaultTx(onSuccessCallback?: () => void) {
       () => vaultWrite('repay', [loanId]),
       async () => {
         const debt = await publicClient!.readContract({
-          address: CONTRACT_ADDRESSES.vault,
+          address: market.vault,
           abi: ARBI_CREDIT_VAULT_ABI,
           functionName: 'debtOf',
           args: [loanId],
         });
-        await ensureAllowance(CONTRACT_ADDRESSES.usdg, (debt * 101n) / 100n, 'USDG Repayment');
+        await ensureAllowance(market.asset, (debt * 101n) / 100n, `${sym} Repayment`);
       }
     );
 
   // --- Lending (ERC-4626) ---
-  const supplyUSDG = (amountUSD: string) => {
-    const assets = parseUnits(amountUSD, USDG_DECIMALS);
+  const supply = (amountUSD: string) => {
+    const assets = parseUnits(amountUSD, STABLE_DECIMALS);
     return run(
-      { sign: 'Supply USDG to the Pool', pending: 'Minting asUSDG lending shares...', done: 'USDG supplied: now earning interest!', failed: 'Supply Failed' },
+      { sign: `Supply ${sym} to the Pool`, pending: `Minting as${sym} lending shares...`, done: `${sym} supplied: now earning interest!`, failed: 'Supply Failed' },
       () => vaultWrite('deposit', [assets, address!]),
-      () => ensureAllowance(CONTRACT_ADDRESSES.usdg, assets, 'USDG')
+      () => ensureAllowance(market.asset, assets, sym)
     );
   };
 
-  const withdrawAllUSDG = () =>
+  const withdrawSupply = () =>
     run(
-      { sign: 'Withdraw Supplied USDG', pending: 'Redeeming asUSDG shares...', done: 'USDG Withdrawn!', failed: 'Withdrawal Failed' },
+      { sign: `Withdraw Supplied ${sym}`, pending: `Redeeming as${sym} shares...`, done: `${sym} Withdrawn!`, failed: 'Withdrawal Failed' },
       async () => {
         const shares = await publicClient!.readContract({
-          address: CONTRACT_ADDRESSES.vault,
+          address: market.vault,
           abi: ARBI_CREDIT_VAULT_ABI,
           functionName: 'maxRedeem',
           args: [address!],
@@ -154,30 +156,18 @@ export function useCreditVaultTx(onSuccessCallback?: () => void) {
         })
     );
 
-  /** Writes a sandbox persona's loan history to the connected wallet (engine demo mode). */
-  const syncPersonaOnChain = (persona: BorrowerPersona) => {
-    const profile = persona.profile;
-    if (!profile) return Promise.resolve();
-    return run(
-      { sign: `Sync ${persona.name} On-Chain`, pending: `Writing ${persona.badge} history to the Stylus engine...`, done: `Profile synced: on-chain score ${persona.score}.`, failed: 'Sync Failed' },
+  /** Test USDC faucet (the USDG market uses real Paxos testnet USDG). */
+  const claimTestStable = () =>
+    run(
+      { sign: `Claim 1,000 test ${sym}`, pending: `Minting test ${sym}...`, done: `Claimed 1,000 test ${sym}!`, failed: 'Faucet Failed' },
       () =>
         walletClient!.writeContract({
-          address: CONTRACT_ADDRESSES.stylusEngine,
-          abi: STYLUS_ENGINE_ABI,
-          functionName: 'setMockProfile',
-          args: [
-            address!,
-            profile.ageDays,
-            profile.totalTransactions,
-            BigInt(profile.totalVolumeUSD),
-            profile.loans.map((l) => BigInt(l.amountUsd)),
-            profile.loans.map((l) => l.borrowedDaysAgo),
-            profile.loans.map((l) => l.status),
-            profile.loans.map((l) => l.daysLate),
-          ],
+          address: market.asset,
+          abi: ERC20_ABI,
+          functionName: 'faucet',
+          args: [address!, parseUnits('1000', STABLE_DECIMALS)],
         })
     );
-  };
 
   /** Portable credit: fetch a signed attestation of Aave V3 history and import it on-chain. */
   const importAaveCredit = (demoSource?: string) =>
@@ -214,12 +204,12 @@ export function useCreditVaultTx(onSuccessCallback?: () => void) {
     resetTx,
     depositCollateral,
     withdrawFreeCollateral,
-    borrowUSDG,
+    borrow,
     repayLoan,
-    supplyUSDG,
-    withdrawAllUSDG,
+    supply,
+    withdrawSupply,
     claimTestWeth,
-    syncPersonaOnChain,
+    claimTestStable,
     importAaveCredit,
   };
 }

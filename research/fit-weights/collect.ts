@@ -11,6 +11,9 @@
  * - Population: wallets with Aave history before T. Positives are all wallets liquidated in the
  *   window (sampled); negatives come from borrowers sampled across Aave's history.
  * Output: dataset.csv and population_stats.json (resumable; progress cached in the gitignored cache.json).
+ *
+ * CUTOFF_OFFSET_DAYS=N moves the cutoff N days earlier (label window (T, T+180d] moves with it) and
+ * writes dataset_cutoff-Nd.csv etc. instead: an out-of-time check for the fitted weights.
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -39,6 +42,8 @@ const AAVE_ORACLE: Address = '0xb56c2F0B653B2e0b10C9b928C8580Ac5Df02C7C7';
 const DEPLOY_BLOCK = 7_742_429n;
 const DAY = 86_400;
 const WINDOW_DAYS = 180;
+const OFFSET_DAYS = Number(process.env.CUTOFF_OFFSET_DAYS ?? 0);
+const TAG = OFFSET_DAYS ? `_cutoff-${OFFSET_DAYS}d` : '';
 const MAX_POSITIVES = Number(process.env.MAX_POSITIVES ?? 700);
 const MAX_NEGATIVES = Number(process.env.MAX_NEGATIVES ?? 1100);
 const CONCURRENCY = 4;
@@ -65,8 +70,15 @@ async function logs<T>(q: (f: bigint, t: bigint) => Promise<T[]>, from: bigint, 
 }
 
 async function main() {
-  const cacheFile = path.join(HERE, 'cache.json');
-  const cache: any = fs.existsSync(cacheFile) ? JSON.parse(fs.readFileSync(cacheFile, 'utf8')) : { rows: {} };
+  const cacheFile = path.join(HERE, `cache${TAG}.json`);
+  const baseCache = path.join(HERE, 'cache.json');
+  let cache: any = { rows: {} };
+  if (fs.existsSync(cacheFile)) cache = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+  else if (TAG && fs.existsSync(baseCache)) {
+    // Reuse the block->timestamp anchors and reserve prices from the main run
+    const b = JSON.parse(fs.readFileSync(baseCache, 'utf8'));
+    cache = { rows: {}, anchors: b.anchors, nowTs: b.nowTs, latest: b.latest, prices: b.prices };
+  }
   const save = () => fs.writeFileSync(cacheFile, JSON.stringify(cache));
 
   // 1. Block -> timestamp by interpolation between anchors (day-level accuracy is all we need)
@@ -94,15 +106,16 @@ async function main() {
   };
   const blockOf = (ts: number) => { let lo = 0; while (lo < A.length - 1 && A[lo + 1][1] <= ts) lo++; const [b0, t0] = A[lo], [b1, t1] = A[Math.min(lo + 1, A.length - 1)]; return BigInt(Math.round(b0 + ((ts - t0) * (b1 - b0)) / Math.max(1, t1 - t0))); };
   const nowTs: number = cache.nowTs;
-  const T = nowTs - WINDOW_DAYS * DAY;
+  const T = nowTs - (WINDOW_DAYS + OFFSET_DAYS) * DAY;
   const tBlock = blockOf(T);
-  console.log(`cutoff T=${new Date(T * 1000).toISOString()} (block ${tBlock}), window ${WINDOW_DAYS}d`);
+  const windowEndBlock = OFFSET_DAYS ? blockOf(T + WINDOW_DAYS * DAY) : BigInt(cache.latest);
+  console.log(`cutoff T=${new Date(T * 1000).toISOString()} (block ${tBlock}), window ${WINDOW_DAYS}d to block ${windowEndBlock}`);
 
-  // 2. Positives: wallets liquidated in (T, now]
+  // 2. Positives: wallets liquidated in (T, T + 180d]
   if (!cache.liquidated) {
     const set = new Set<string>();
-    for (let b = tBlock; b <= BigInt(cache.latest); b += 2_000_000n) {
-      const to = b + 1_999_999n > BigInt(cache.latest) ? BigInt(cache.latest) : b + 1_999_999n;
+    for (let b = tBlock; b <= windowEndBlock; b += 2_000_000n) {
+      const to = b + 1_999_999n > windowEndBlock ? windowEndBlock : b + 1_999_999n;
       const l = await logs((f, t) => client.getLogs({ address: POOL, event: LIQ, fromBlock: f, toBlock: t }), b, to);
       for (const x of l) set.add(getAddress(x.args.user!));
     }
@@ -192,16 +205,17 @@ async function main() {
   const rows = Object.entries(cache.rows).filter(([, v]) => v) as [string, any][];
   const cols = ['wallet', 'label', 'quality', 'depth', 'liquidation', 'age', 'activity', 'volume', 'utilization', 'handP', 'events', 'closed', 'open'];
   const csv = [cols.join(','), ...rows.map(([w, v]) => [w, ...cols.slice(1).map((c) => v[c])].join(','))].join('\n');
-  fs.writeFileSync(path.join(HERE, 'dataset.csv'), csv + '\n');
-  fs.writeFileSync(path.join(HERE, 'population_stats.json'), JSON.stringify({
+  fs.writeFileSync(path.join(HERE, `dataset${TAG}.csv`), csv + '\n');
+  fs.writeFileSync(path.join(HERE, `population_stats${TAG}.json`), JSON.stringify({
     population_sampled: cache.population.length,
     population_liquidated_in_window: (cache.population as string[]).filter((w) => L.has(w)).length,
     liquidated_in_window: L.size,
     cutoff_ts: T,
+    window_end_ts: T + WINDOW_DAYS * DAY,
     now_ts: nowTs,
   }, null, 2));
   const pos = rows.filter(([, v]) => v.label === 1).length;
-  console.log(`dataset.csv: ${rows.length} wallets with pre-cutoff history (${pos} liquidated in window, ${rows.length - pos} not)`);
+  console.log(`dataset${TAG}.csv: ${rows.length} wallets with pre-cutoff history (${pos} liquidated in window, ${rows.length - pos} not)`);
 }
 
 main().catch((e) => { console.error(e); process.exitCode = 1; });

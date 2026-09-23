@@ -2,7 +2,9 @@
 
 **A credit layer where your repayment history lowers your collateral. The risk model runs in Rust on Arbitrum Stylus, and two lending markets (Paxos USDG and test USDC) share it.**
 
-Built for the Arbitrum Open House Singapore Online Buildathon (2026). Live on Arbitrum Sepolia.
+### ▶ Live app: **[frontend-liard-phi-73.vercel.app](https://frontend-liard-phi-73.vercel.app)**
+
+Runs on Arbitrum Sepolia. It opens in a sandbox with sample borrowers; connect a wallet to use the live markets ([how to try it](#try-it-judges)). Built for the Arbitrum Open House Singapore Online Buildathon (2026).
 
 **Prior art.** An unrelated earlier project, [ARBISCORE](https://ethglobal.com/showcase/arbiscore-0yqup) (ETHGlobal Agentic Ethereum, February 2025), proposed a Q-learning credit agent on Stylus. I came across it during AI-assisted research. Its repository is a Stylus template with the model's storage declared but no scoring or lending logic. This project shares no code with it; the model, markets, Aave import and benchmarks were built for this buildathon.
 
@@ -68,6 +70,13 @@ The unconstrained fit leans almost entirely on Aave activity and volume, and giv
 
 These constraints cost 0.03 AUC.
 
+**Why repayment depth keeps a weight of 2.5 when the unconstrained fit gave it zero.** Depth does predict: on its own it separates liquidated from non-liquidated wallets (AUC 0.65). It got zero because it moves with activity (correlation 0.68) and volume (0.73), so the unconstrained fit credited those two instead. Drop activity and volume, and the same fit gives depth a weight of 1.95 at an out-of-sample AUC of 0.729. The choice between them matters for the product:
+- Activity and volume come only from attested Aave history, and they're cheap to inflate with borrow-and-repay churn.
+- Depth only counts loans held 14 days or more and weights them by size and recency. On ArbiScore itself, every such loan has also paid interest.
+- Depth is what the protocol observes directly, so it's the path to Prime.
+
+The 2.5 is still a product choice, not an estimate. It's the first weight to refit once ArbiScore has repayment outcomes of its own.
+
 Tiers order cleanly by realised risk. Share liquidated within 180 days, in this enriched sample: **Prime 5.6%, Near-Prime 14.4%, Moderate 34.4%, Subprime 57.2%**.
 
 The same model is implemented three times, and all three agree **bit-for-bit** on 411 shared test vectors:
@@ -91,7 +100,7 @@ The identical model and inputs were run through both engines on Arbitrum Sepolia
 - **Storage caps the end-to-end gain** at about 2× for the current model.
 - **Very short histories favor Solidity**, because Stylus has a fixed entry cost of about 30k gas.
 
-**Richer models widen the gap (measured).** `scoreEnsemble(user, k)` reads the same 64 loans once, then runs the model k times with different recency half-lives. Storage stays fixed while arithmetic grows, which is what a richer model looks like. Both engines return identical scores at every k:
+**Richer models widen the gap (measured).** `scoreEnsemble(user, k)` is a benchmark hook that the markets don't call. It reads the same 64 loans once, then runs the model k times with different recency half-lives. Storage stays fixed while arithmetic grows, which is what a richer model looks like. Both engines return identical scores at every k:
 
 | Model evaluations (k), 64 loans | Solidity | Stylus | Stylus advantage |
 |---|---|---|---|
@@ -99,7 +108,7 @@ The identical model and inputs were run through both engines on Arbitrum Sepolia
 | 4 | 1,217,873 | 242,426 | **5.02×** |
 | 16 | 4,282,006 | 388,123 | **11.03×** |
 
-**To be clear:** today's model fits in Solidity; it costs about 419k gas at 64 loans. Stylus doesn't make on-chain credit scoring possible for the first time. It makes the current model about 2× cheaper, and a 16× richer model about 11× cheaper.
+**To be clear:** the live scoring path is about **2× cheaper** in Stylus. Today's model fits in Solidity; it costs about 419k gas at 64 loans, and Stylus doesn't make on-chain credit scoring possible for the first time. The 11× figure is for a hypothetical model 16 times heavier. It shows how much room Stylus leaves to grow the model, not what the markets pay today.
 
 ## Decisions and tradeoffs
 

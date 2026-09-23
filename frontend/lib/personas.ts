@@ -92,7 +92,15 @@ export function buildPersona(id: PersonaId, loans: SandboxLoan[], extraDays = 0)
         loanId: l.positionId!,
         amountUSDG: l.amountUsd,
         collateralLockedETH: l.collateralLockedETH ?? 0,
-        dueDateFormatted: dueLabel(l.borrowedDaysAgo),
+        // Closed loans show their outcome; only an open loan counts down to (or past) its due date
+        dueDateFormatted:
+          l.status === LOAN_OPEN
+            ? dueLabel(l.borrowedDaysAgo)
+            : l.status === LOAN_LIQUIDATED
+              ? 'Liquidated'
+              : l.daysLate > 0
+                ? `Repaid ${l.daysLate}d late`
+                : 'Repaid on time',
         status: l.status === LOAN_OPEN ? 'Active' : l.status === LOAN_LIQUIDATED ? 'Liquidated' : 'Repaid',
       })),
   };

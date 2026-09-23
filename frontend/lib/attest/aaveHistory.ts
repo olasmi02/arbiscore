@@ -51,7 +51,10 @@ export interface AttestedHistory {
 export async function readAaveHistory(wallet: Address, nowSec: number): Promise<AttestedHistory> {
   const client = createPublicClient({
     chain: arbitrum,
-    transport: http(process.env.ARBITRUM_ONE_RPC, { retryCount: 5, retryDelay: 400 }),
+    // Needs full-range eth_getLogs: the default public endpoint (arb1.arbitrum.io) allows it, but
+    // many free tiers (e.g. Alchemy: 10 blocks) don't. Concurrent calls are sent as JSON-RPC batches
+    // (fewer HTTP requests against public rate limits); retries back off exponentially.
+    transport: http(process.env.ARBITRUM_ONE_RPC, { batch: { batchSize: 25 }, retryCount: 5, retryDelay: 750 }),
   });
   const latest = await client.getBlockNumber();
 
@@ -91,15 +94,18 @@ export async function readAaveHistory(wallet: Address, nowSec: number): Promise<
   };
   if (events.length === 0) return empty;
 
-  // Block timestamps and reserve pricing (current Aave oracle price, USD with 8 decimals)
-  const blocks = [...new Set(events.map((e) => e.log.blockNumber!))];
+  // Block timestamps (a log's own `blockTimestamp` is used when the node fills it in; arb1 returns 0),
+  // fetched concurrently so the transport batches them. Then reserve pricing (current Aave oracle
+  // price, USD with 8 decimals).
   const blockTs = new Map<bigint, number>();
-  // A few requests at a time: public RPCs rate-limit bursts from active wallets
-  for (let i = 0; i < blocks.length; i += 8) {
-    await Promise.all(
-      blocks.slice(i, i + 8).map(async (b) => blockTs.set(b, Number((await client.getBlock({ blockNumber: b })).timestamp)))
-    );
+  for (const e of events) {
+    const ts = Number((e.log as { blockTimestamp?: bigint | string | number }).blockTimestamp ?? 0);
+    if (ts > 0) blockTs.set(e.log.blockNumber!, ts);
   }
+  const missing = [...new Set(events.map((e) => e.log.blockNumber!))].filter((b) => !blockTs.has(b));
+  await Promise.all(
+    missing.map(async (b) => blockTs.set(b, Number((await client.getBlock({ blockNumber: b })).timestamp)))
+  );
   const reserves = [...new Set(events.map((e) => e.reserve))];
   const pricing = new Map<Address, { price: bigint; decimals: number }>();
   await Promise.all(

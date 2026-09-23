@@ -212,7 +212,7 @@ cd frontend && npm install && npm run dev                          # dashboard +
 **Environment variables for `/api/attest`** (server-only):
 - `ATTESTER_PRIVATE_KEY` signs attestations.
 - `DEMO_ACCESS_CODE` and/or `DEMO_WALLETS` (comma-separated) unlock the two fixed demo imports. Without them, only own-history imports work.
-- `ARBITRUM_ONE_RPC` is an Arbitrum One RPC URL for reading Aave history. The public endpoint rate-limits heavy wallets.
+- `ARBITRUM_ONE_RPC` (optional) overrides the Arbitrum One RPC used to read Aave history. Leave it unset to use the public `arb1.arbitrum.io` endpoint. An override must allow full-range `eth_getLogs`, and many free tiers don't (Alchemy's free plan allows 10 blocks). One import makes about 6–8 batched requests.
 
 ## What works, and what doesn't yet
 

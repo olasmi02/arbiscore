@@ -110,7 +110,32 @@ for label, w in [("hand", HAND), ("guarded", wf)]:
     for t, n, r in tiers(w):
         print(f"  {t:<10} n={n:<5} liquidated={r:6.1%}")
 
+# Out-of-time check: the weights above, fitted on this cutoff, scored on an earlier, non-overlapping
+# period collected with CUTOFF_OFFSET_DAYS=180 (cutoff 360 days ago, label window ending at this cutoff)
+oot = None
+oot_file = os.path.join(HERE, "dataset_cutoff-180d.csv")
+if os.path.exists(oot_file):
+    orows = list(csv.DictReader(open(oot_file)))
+    OX = np.array([[float(r[f]) for f in FEATURES] for r in orows])
+    ogood = np.array([1 - int(r["label"]) for r in orows])
+    orisk = np.array([int(r["open"]) > 0 for r in orows])
+    oauc = lambda w, sel: roc_auc_score(ogood[sel], OX[sel] @ w[1:])
+    alls = np.ones(len(orows), bool)
+    oot = {name: {"all": oauc(w, alls), "risk": oauc(w, orisk)} for name, w in [("hand", HAND), ("free_fit", wfree), ("fitted", wf)]}
+    os_ = 300 + 550 / (1 + np.exp(-(wf[0] + OX @ wf[1:])))
+    otiers, hi = [], 10_000
+    for thr, label in TIERS:
+        sel = (os_ >= thr) & (os_ < hi)
+        otiers.append((label, int(sel.sum()), float((1 - ogood)[sel].mean()) if sel.any() else float("nan")))
+        hi = thr
+    oot["tiers_fitted"] = otiers
+    print(f"\nOut-of-time check: earlier period ({len(orows)} wallets, {int((1 - ogood).sum())} liquidated; weights not refitted)")
+    for grp, k in [("all wallets", "all"), ("debt open at cutoff", "risk")]:
+        print(f"  {grp:<21} hand {oot['hand'][k]:.3f}   free fit {oot['free_fit'][k]:.3f}   guarded {oot['fitted'][k]:.3f}")
+    print("  tiers, guarded weights:", ", ".join(f"{t} {r:.1%} (n={n})" for t, n, r in otiers))
+
 json.dump({
+    "out_of_time": oot,
     "features": FEATURES, "hand": HAND.tolist(), "free_fit": wfree.tolist(), "fitted": wf.tolist(),
     "fixed_point": {n: int(round(v * S)) for n, v in zip(["intercept"] + FEATURES, wf)},
     "cv_auc_mean": m, "cv_auc_sd": sd, "n": len(rows), "liquidated": int(bad.sum()),

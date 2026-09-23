@@ -1,0 +1,8 @@
+{
+  "population_sampled": 18198,
+  "population_liquidated_in_window": 1183,
+  "liquidated_in_window": 4815,
+  "cutoff_ts": 1759071984,
+  "window_end_ts": 1774623984,
+  "now_ts": 1790175984
+}

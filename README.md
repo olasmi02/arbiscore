@@ -79,6 +79,22 @@ The 2.5 is still a product choice, not an estimate. It's the first weight to ref
 
 Tiers order cleanly by realised risk. Share liquidated within 180 days, in this enriched sample: **Prime 5.6%, Near-Prime 14.4%, Moderate 34.4%, Subprime 57.2%**.
 
+**Out-of-time check (a different period, weights not refitted).** Random splits all come from one period, so I also scored the weights on an earlier, non-overlapping one. That run used 1,684 wallets, with features taken before September 2025 and liquidations counted through March 2026. It was a rougher period: 6.5% of borrowers were liquidated, against 2.25%.
+
+| Weights | AUC, all wallets | AUC, wallets with debt open at cutoff |
+|---|---|---|
+| Previous hand-set weights | 0.735 | 0.712 |
+| Unconstrained fit | 0.717 | 0.661 |
+| **Shipped: fit with guardrails** | **0.724** | **0.705** |
+
+What this does and doesn't show:
+- **The shipped model generalises.** Its ranking quality holds at about 0.72 across both periods.
+- **The guardrails did their job.** The unconstrained fit lost the most (0.750 → 0.661 on at-risk wallets), because it had learned that period's activity patterns.
+- **Fitting did not beat the hand-set weights across periods.** The fitted weights win inside the period they were fitted on (0.744 vs 0.712); on the earlier period the hand-set ones do slightly better (0.735 vs 0.724). So the claim I'm comfortable making is that the model's accuracy is measured and stable, not that fitting improved it.
+- **The tiers still order by risk**, but less sharply: Prime 17.1%, Near-Prime 23.1%, Moderate 24.3%, Subprime 52.0% liquidated.
+
+The next step is to fit on both periods together with a time-based split. Any refit changes the on-chain coefficients and needs a redeploy.
+
 The same model is implemented three times, and all three agree **bit-for-bit** on 411 shared test vectors:
 - [`scoring.rs`](contracts/stylus_score/src/scoring.rs) is the Stylus engine.
 - [`ArbiScoreModel.sol`](contracts/lending_vault/contracts/ArbiScoreModel.sol) is the Solidity port and gas baseline.

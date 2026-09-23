@@ -5,6 +5,7 @@ import { useSandbox } from '@/lib/context/SandboxContext';
 import { PersonaId } from '@/lib/types';
 import clsx from 'clsx';
 import { User, ShieldAlert, Award } from 'lucide-react';
+import { scoreToTier } from '@/lib/math';
 
 export function PersonaSwitcher() {
   const { activePersonaId, setActivePersonaId, sandboxPersonas } = useSandbox();
@@ -16,7 +17,6 @@ export function PersonaSwitcher() {
       title: 'Institutional Prime',
       score: sandboxPersonas.alice.score,
       tier: `${sandboxPersonas.alice.tier} (${sandboxPersonas.alice.ratioLabel})`,
-      badgeColor: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10',
       icon: Award,
     },
     {
@@ -25,7 +25,6 @@ export function PersonaSwitcher() {
       title: 'Fresh / Moderate',
       score: sandboxPersonas.charlie.score,
       tier: `${sandboxPersonas.charlie.tier} (${sandboxPersonas.charlie.ratioLabel})`,
-      badgeColor: 'text-amber-400 border-amber-500/30 bg-amber-500/10',
       icon: User,
     },
     {
@@ -34,7 +33,6 @@ export function PersonaSwitcher() {
       title: 'High-Risk Degen',
       score: sandboxPersonas.bob.score,
       tier: `${sandboxPersonas.bob.tier} (${sandboxPersonas.bob.ratioLabel})`,
-      badgeColor: 'text-rose-400 border-rose-500/30 bg-rose-500/10',
       icon: ShieldAlert,
     },
   ];
@@ -44,6 +42,8 @@ export function PersonaSwitcher() {
       {personas.map((p) => {
         const isSelected = activePersonaId === p.id;
         const Icon = p.icon;
+        // Badge colour follows the current tier, which changes as the sandbox simulates outcomes
+        const tier = scoreToTier(p.score);
         return (
           <button
             key={p.id}
@@ -86,8 +86,10 @@ export function PersonaSwitcher() {
               <span
                 className={clsx(
                   'px-2 py-0.5 rounded text-[10px] font-mono font-semibold border',
-                  p.badgeColor
+                  tier.bgLight,
+                  tier.borderColor
                 )}
+                style={{ color: tier.badgeColor }}
               >
                 {p.tier}
               </span>

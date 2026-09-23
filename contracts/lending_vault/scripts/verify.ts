@@ -5,6 +5,7 @@
  * - Arbiscan: when ETHERSCAN_API_KEY (an Etherscan V2 key) is set in .env.
  *
  *   npx hardhat run scripts/verify.ts --network arbitrumSepolia
+ *   SUBMIT_ONLY=1 ... submits to Arbiscan without waiting for its (slow) queue; re-run to confirm
  */
 import { artifacts, ethers, network } from "hardhat";
 import * as fs from "fs";
@@ -76,6 +77,7 @@ async function arbiscan(fqn: string, address: string, args: unknown[], chainId: 
   });
   const submit = await (await fetch(api, { method: "POST", body: form })).json();
   if (submit.status !== "1") throw new Error(submit.result ?? submit.message);
+  if (process.env.SUBMIT_ONLY) return "submitted (queued)";
 
   // Arbiscan's testnet queue can take many minutes; re-running the script later is safe.
   for (let i = 0; i < 60; i++) {

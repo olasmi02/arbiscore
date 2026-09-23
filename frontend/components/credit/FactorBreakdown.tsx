@@ -110,6 +110,11 @@ export function FactorBreakdown({ factors }: FactorBreakdownProps) {
           </span>
         }
       />
+      {factors.delinquent > 0 && (
+        <div role="note" className="sm:col-span-2 p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300">
+          Score capped at 599 (Subprime) while a loan is overdue and unpaid. Repaying it, even late, lifts the cap.
+        </div>
+      )}
     </div>
   );
 }

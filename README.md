@@ -30,9 +30,12 @@ Runs on Arbitrum Sepolia. It opens in a sandbox with sample borrowers; connect a
    - Every repayment or liquidation is written back into the borrower's shared history.
 3. **Makes credit portable.** New wallets don't have to start from zero. Closed Aave V3 loans on Arbitrum One are indexed, signed as an EIP-712 attestation, verified on-chain by `CreditImporter`, and scored immediately.
 
-**Two properties make the score hard to game:**
+**What makes the score hard to game** (each is tested; see `contracts/test_vectors/model_properties.ts` and `scripts/scenarios.ts`):
 - **Wallet-hopping doesn't help.** A new wallet scores Subprime and borrows at 150%, the same as a normal DeFi protocol. Walking away from a bad history only returns you to standard terms.
 - **Wash-borrowing doesn't help.** Credit from a repaid loan scales with how long it was outstanding (full at 14 days), and every loan pays interest. On a new wallet, 1, 3 or 64 instant borrow-and-repay loops leave the score exactly where it started.
+- **Dust farming doesn't help.** A wallet can hold at most **3 open loans per market**. Without that cap, 64 simultaneous $1 loans held two weeks lifted a fresh wallet to Near-Prime for $0.18 of interest. With it, the same trick is still Subprime after two months, and never reaches Prime within a year. An honest $5,000-a-month borrower reaches Prime in about two months.
+- **Liquidations can't be buried.** The model reads the latest 64 loans, **plus the 16 most recent liquidations even when they're older than that**. Taking 64 tiny loans no longer pushes a liquidation out of view.
+- **No better than Subprime while in default.** While any loan is overdue and unpaid, the score is capped at 599 (150% collateral). Repaying it, even late, lifts the cap.
 
 ## The model
 
@@ -42,7 +45,7 @@ A fixed-point **logistic regression** over seven features computed from the wall
 |---|---|
 | Repayment quality | Each repaid loan is weighted by **recency** (half-life of 180 days), **size** (√amount) and **seasoning** (time outstanding, full at 14 days). A loan repaid 15 days late counts half. Beta-prior smoothing keeps a thin history from producing an extreme score |
 | Credit depth | Total weighted evidence, saturating |
-| Liquidations | Weighted liquidations, which fade over time once they're in the past. An open loan past its due date counts as a full liquidation that does **not** fade while it stays unpaid |
+| Liquidations | Weighted liquidations, which fade over time once they're in the past. The 16 most recent still count even when they're older than the 64-loan window. An open loan past its due date counts as a full liquidation that does **not** fade while it stays unpaid, and caps the score at 599 until it's repaid |
 | Utilization | Open principal relative to the largest loan the wallet has repaid |
 | Wallet age, activity, volume | Saturating curves |
 
@@ -106,13 +109,13 @@ The identical model and inputs were run through both engines on Arbitrum Sepolia
 
 | Loans in history | Solidity | Stylus | Stylus advantage |
 |---|---|---|---|
-| 0 | 12,263 | 30,419 | Solidity is 2.5× cheaper |
-| 8 | 60,968 | 52,075 | **1.17×** |
-| 32 | 214,613 | 117,993 | **1.82×** |
-| 64 | 418,277 | 205,239 | **2.04×** |
+| 0 | 14,509 | 32,599 | Solidity is 2.2× cheaper |
+| 8 | 65,685 | 56,538 | **1.16×** |
+| 32 | 220,788 | 121,719 | **1.81×** |
+| 64 | 428,820 | 212,843 | **2.01×** |
 
 **How to read this:**
-- **The math is about 6.7× cheaper in Stylus.** Each loan adds about 2,700 gas in Stylus and about 6,350 in Solidity. About 2,100 of each is the storage read for the loan record, which costs the same on both VMs. The remaining arithmetic is roughly 630 gas in Stylus against 4,250 in the EVM.
+- **The math is about 6× cheaper in Stylus.** Each loan adds about 2,800 gas in Stylus and about 6,500 in Solidity. About 2,100 of each is the storage read for the loan record, which costs the same on both VMs. The remaining arithmetic is roughly 700 gas in Stylus against 4,400 in the EVM.
 - **Storage caps the end-to-end gain** at about 2× for the current model.
 - **Very short histories favor Solidity**, because Stylus has a fixed entry cost of about 30k gas.
 
@@ -120,11 +123,11 @@ The identical model and inputs were run through both engines on Arbitrum Sepolia
 
 | Model evaluations (k), 64 loans | Solidity | Stylus | Stylus advantage |
 |---|---|---|---|
-| 1 | 451,356 | 205,957 | **2.19×** |
-| 4 | 1,215,914 | 242,324 | **5.02×** |
-| 16 | 4,274,157 | 387,711 | **11.02×** |
+| 1 | 451,416 | 205,977 | **2.19×** |
+| 4 | 1,216,162 | 242,347 | **5.02×** |
+| 16 | 4,275,156 | 387,745 | **11.03×** |
 
-**To be clear:** the live scoring path is about **2× cheaper** in Stylus. Today's model fits in Solidity; it costs about 418k gas at 64 loans, and Stylus doesn't make on-chain credit scoring possible for the first time. The 11× figure is for a hypothetical model 16 times heavier. It shows how much room Stylus leaves to grow the model, not what the markets pay today.
+**To be clear:** the live scoring path is about **2× cheaper** in Stylus. Today's model fits in Solidity; it costs about 429k gas at 64 loans, and Stylus doesn't make on-chain credit scoring possible for the first time. The 11× figure is for a hypothetical model 16 times heavier. It shows how much room Stylus leaves to grow the model, not what the markets pay today.
 
 ## Decisions and tradeoffs
 
@@ -137,7 +140,9 @@ What I chose, what I cut, and why.
 | **Never below 105% collateral** | There's no recourse against a pseudonymous wallet, so good credit lowers collateral but never removes it. | Not true under-collateralized lending |
 | **New wallets get standard terms (150%), not a penalty** | A penalty below market would push people to reuse wallets, and punishing fresh wallets makes switching wallets pointless anyway. | Someone with a bad history can start over at market terms, but no better |
 | **Credit only for loans held 14+ days, and every loan pays interest** | Stops wash-borrowing: instant borrow-and-repay loops earn nothing. | A genuinely short loan earns little credit |
-| **Latest 64 loans only** | Bounded gas for every score. | Very old history drops out (it has also faded by recency) |
+| **Latest 64 loans, plus the 16 most recent liquidations** | Bounded gas for every score, without letting new loans push old defaults out of view. | Very old repayments drop out (they have also faded by recency) |
+| **At most 3 open loans per borrower per market** | Credit accrues per loan, so many tiny simultaneous loans could otherwise buy a score. | Someone who genuinely needs a fourth loan in one market has to repay one first |
+| **Score capped at Subprime while any loan is overdue** | No one should get better terms while in default. | A small overdue loan caps an otherwise strong wallet until it's repaid |
 | **Trusted attester for Aave imports, not storage proofs** | Proving Arbitrum One state on another chain was too large for this build. The attestation is EIP-712, tied to one wallet, expires, and only works on a wallet with no history. | The attester key is trusted; storage proofs are the roadmap |
 | **Imports only for your own wallet, with demo imports gated** | Aave history is public, so without this anyone could import someone else's good record. | Judges need an access code to try the two demo borrowers |
 | **Demo mode off in production** | No one, including the owner, can write a credit history directly. Histories only come from real loan outcomes and a one-time import. | Personas live in the in-browser sandbox, not on-chain |
@@ -164,28 +169,28 @@ See [`SECURITY.md`](SECURITY.md) for the full threat model and the Slither triag
 
 | Contract | Address |
 |---|---|
-| ArbiScoreEngine (Rust / Stylus) | [`0x8B71077056b52ca10f96451BD3E3565274D72034`](https://sepolia.arbiscan.io/address/0x8B71077056b52ca10f96451BD3E3565274D72034) |
-| ArbiCreditVault, USDG market (`asUSDG`) | [`0x893625C0Defa9d9220eF173fA7F4Fb6ee9A89b08`](https://sepolia.arbiscan.io/address/0x893625C0Defa9d9220eF173fA7F4Fb6ee9A89b08#code) |
-| ArbiCreditVault, test USDC market (`asUSDC`) | [`0x0299E5b7798b370dEeDc50C1F16C04e9676D3aE3`](https://sepolia.arbiscan.io/address/0x0299E5b7798b370dEeDc50C1F16C04e9676D3aE3#code) |
-| CreditImporter | [`0xfB6B20D7bE0525861978aDc9C917d53bC1a2Df92`](https://sepolia.arbiscan.io/address/0xfB6B20D7bE0525861978aDc9C917d53bC1a2Df92#code) |
-| ChainlinkPriceOracle (ETH/USD) | [`0xB218b7953eEEC07D8cbe952E4362F405640f9ee2`](https://sepolia.arbiscan.io/address/0xB218b7953eEEC07D8cbe952E4362F405640f9ee2#code) |
+| ArbiScoreEngine (Rust / Stylus) | [`0x74f0AAf83A7536c4350aA4C8Bb7bb474C734b789`](https://sepolia.arbiscan.io/address/0x74f0AAf83A7536c4350aA4C8Bb7bb474C734b789) |
+| ArbiCreditVault, USDG market (`asUSDG`) | [`0xa247e6c396ECFE7485Cd54226AD7F49064F9a36c`](https://sepolia.arbiscan.io/address/0xa247e6c396ECFE7485Cd54226AD7F49064F9a36c#code) |
+| ArbiCreditVault, test USDC market (`asUSDC`) | [`0x94a31d0F82b2EC877CAb40140582a175b68a6315`](https://sepolia.arbiscan.io/address/0x94a31d0F82b2EC877CAb40140582a175b68a6315#code) |
+| CreditImporter | [`0x762b435a3368D6718Ac27d5B18Fb5F5D8Be10264`](https://sepolia.arbiscan.io/address/0x762b435a3368D6718Ac27d5B18Fb5F5D8Be10264#code) |
+| ChainlinkPriceOracle (ETH/USD) | [`0xd9BB4b32842c4bAd33978A2332317Ec9FB9492C0`](https://sepolia.arbiscan.io/address/0xd9BB4b32842c4bAd33978A2332317Ec9FB9492C0#code) |
 | USDG (Paxos) | [`0xFFC95faa3d63Cde504a05B567C600B78C0b41892`](https://sepolia.arbiscan.io/address/0xFFC95faa3d63Cde504a05B567C600B78C0b41892) |
-| Test USDC (public faucet) | [`0x14aA933f6478F89c20fBEFe219c7472416f72255`](https://sepolia.arbiscan.io/address/0x14aA933f6478F89c20fBEFe219c7472416f72255#code) |
-| Test WETH (collateral, public faucet) | [`0x7B4546fB769D17b1B31C91B7a6e51b8933Bc029e`](https://sepolia.arbiscan.io/address/0x7B4546fB769D17b1B31C91B7a6e51b8933Bc029e#code) |
-| SolidityScoreEngine (benchmark baseline) | [`0x3db8D9905B77763b9C7a9436395e3312cf6E8A95`](https://sepolia.arbiscan.io/address/0x3db8D9905B77763b9C7a9436395e3312cf6E8A95#code) |
+| Test USDC (public faucet) | [`0xA471D9501c13Dbb1dC9D5f5039c4f934310dAb5d`](https://sepolia.arbiscan.io/address/0xA471D9501c13Dbb1dC9D5f5039c4f934310dAb5d#code) |
+| Test WETH (collateral, public faucet) | [`0xeE5057852E7bB54A97166ac4e127a87a5aBa6A2D`](https://sepolia.arbiscan.io/address/0xeE5057852E7bB54A97166ac4e127a87a5aBa6A2D#code) |
+| SolidityScoreEngine (benchmark baseline) | [`0xcD9dDFE2bba834D3b067d9C23BDb5Da8ff192e3D`](https://sepolia.arbiscan.io/address/0xcD9dDFE2bba834D3b067d9C23BDb5Da8ff192e3D#code) |
 
 **Source verification:**
 - **Solidity:** every Solidity contract above is verified on **Arbiscan** (the `#code` links) and on **Sourcify** with an exact match. Reproduce with `npx hardhat run scripts/verify.ts --network arbitrumSepolia` (Arbiscan needs `ETHERSCAN_API_KEY` in `.env`).
-- **Stylus engine (reproducible build):** deployed with `cargo stylus deploy` (cargo-stylus 0.10.9) from a pinned Docker build: Rust 1.91.0 plus a Binaryen `wasm-opt` 132 recipe declared in [`Stylus.toml`](contracts/stylus_score/Stylus.toml). The deployment carries the project hash `328d5f14…2457`. Anyone can rebuild and check it with `cargo stylus verify --deployment-tx 0x68a2f427ab6fec266c63f7b6db870305e6d3967da28987d5c747039020f5c43d` from `contracts/stylus_score`, which prints `Verification successful`.
+- **Stylus engine (reproducible build):** deployed with `cargo stylus deploy` (cargo-stylus 0.10.9) from a pinned Docker build: Rust 1.91.0 plus a Binaryen `wasm-opt` 132 recipe declared in [`Stylus.toml`](contracts/stylus_score/Stylus.toml). The deployment carries the project hash `bba90a12…1ced`. Anyone can rebuild and check it with `cargo stylus verify --deployment-tx 0x74f0a965f1fe5f8400749aefa02183587d3b80d8a59d934da033de9c76fe897f` from `contracts/stylus_score`, which prints `Verification successful`.
 
-Stylus [deployment](https://sepolia.arbiscan.io/tx/0x68a2f427ab6fec266c63f7b6db870305e6d3967da28987d5c747039020f5c43d), [activation](https://sepolia.arbiscan.io/tx/0x9095d1b9858049f905377465c3045093ff0d31ab9b39adf633035b79ce9099d4) and [cache bid](https://sepolia.arbiscan.io/tx/0xb08d75f12d20ea17ece70fd6019cec13fe5b112976b0bea2d0e92aaa53cced75). Demo mode is **off**, so no one, the owner included, can rewrite an existing credit history.
+Stylus [deployment](https://sepolia.arbiscan.io/tx/0x74f0a965f1fe5f8400749aefa02183587d3b80d8a59d934da033de9c76fe897f), [activation](https://sepolia.arbiscan.io/tx/0x2271385e422fba043d959e9460b2408ca67522b0404b7c211cd1e0b6beb46079) and [cache bid](https://sepolia.arbiscan.io/tx/0x6da7bcb417f2062c91fb69d7260a8db244ac4472c14e3700c9c9b699fb51c22b). Demo mode is **off**, so no one, the owner included, can rewrite an existing credit history.
 
 The live smoke test ([`scripts/smokeTest.ts`](contracts/lending_vault/scripts/smokeTest.ts)) checked the following on this deployment:
 1. **New wallets:** a fresh wallet scores 300 and is quoted 150% collateral at the live Chainlink price.
-2. **Live lending, no farming:** it [borrowed](https://sepolia.arbiscan.io/tx/0x236640920dda5c93c0ee9c1ccf8b3d697042b2bbc05098ad65ef79848523b33a) 5 test USDC and [repaid it with interest](https://sepolia.arbiscan.io/tx/0xcbbc81dd42971da8e51395c04a9f46ee84c9f30249122b0117391a44886365cb) straight away. The score stayed at **512 → 512**, because an instant loop earns no credit.
+2. **Live lending, no farming:** it [borrowed](https://sepolia.arbiscan.io/tx/0x0c094cd7817cc9cb0091610077b648ddc3e2262eb0b5e57a49fda1d4dbb76a18) 5 test USDC and [repaid it with interest](https://sepolia.arbiscan.io/tx/0x9ae1fee059a61c804d5156dc0f0ffe0b0870e476f7171c2e6e7196f05aab8c38) straight away. The score stayed at **512 → 512**, because an instant loop earns no credit.
 3. **Portable credit, both ways:**
-   - A real Aave V3 borrower with a clean record (31 borrows over ~20 months, 10 repaid positions) was attested, [imported via EIP-712](https://sepolia.arbiscan.io/tx/0xb6f157ee2574eb90eb78d36e50c1c8fe947fb33dbbe295cdee533c5934ef5511) and scored **818 (Prime, 105%)**.
-   - A real borrower who was liquidated on about $34k of debt [imported](https://sepolia.arbiscan.io/tx/0xa1a1f9629a122a1329e8be30c88165be46572ab008f6f725a5afd5b306bd778d) at **418 (Subprime, 150%)**.
+   - A real Aave V3 borrower with a clean record (31 borrows over ~20 months, 10 repaid positions) was attested, [imported via EIP-712](https://sepolia.arbiscan.io/tx/0x8f979a61a0335df395962730b67213acdc60f93c91ac00b818078ff92e4328a6) and scored **818 (Prime, 105%)**.
+   - A real borrower who was liquidated on about $34k of debt [imported](https://sepolia.arbiscan.io/tx/0x9da07d91758f5060f492e8bb6242f650cbe3f0c4a2745a6c4c86d80cba0fc0ef) at **418 (Subprime, 150%)**.
    - Re-importing was rejected with `AlreadyHasHistory`.
 4. **Parity:** the "Alice" persona scores exactly **834** on-chain, matching the TypeScript model.
 
@@ -222,8 +227,10 @@ The live smoke test ([`scripts/smokeTest.ts`](contracts/lending_vault/scripts/sm
 ## Build and test
 
 ```bash
-cd contracts/stylus_score && cargo test && cargo stylus check    # 11 tests (Linux/macOS/WSL), activation check
-cd contracts/lending_vault && npm install && npx hardhat test     # 36 tests incl. invariant fuzz
+cd contracts/stylus_score && cargo test && cargo stylus check    # 13 tests (Linux/macOS/WSL), activation check
+cd contracts/lending_vault && npm install && npx hardhat test     # 39 tests incl. invariant fuzz
+node --experimental-strip-types contracts/test_vectors/model_properties.ts   # ~105,000 fairness checks on random histories
+cd contracts/lending_vault && npx hardhat run scripts/scenarios.ts          # 10 adversarial scenarios on local contracts
 cd frontend && npm install && npm run dev                          # dashboard + /api/attest
 ```
 
@@ -258,6 +265,7 @@ cd frontend && npm install && npm run dev                          # dashboard +
 - **The attester is a single trusted key**, not a storage proof.
 - **Sandbox personas are sample data.** They are labelled as such, and live mode shows only on-chain data.
 - **The demo imports use two fixed, public Aave wallets**, not the judge's own history.
+- **Splitting a loan still earns a little extra credit.** Credit per loan grows with the square root of its size, so three $3,333 loans score about 30 points more than one $10,000 loan (773 vs 743). The 3-open-loan cap bounds this. Weighting credit by dollars instead is the fix, but it would require refitting the weights.
 - **The model is fitted to Aave liquidations only.** Aave liquidations stand in for defaults, the sample covers one 180-day window on one venue, and the tier cutoffs are product choices. Refitting as ArbiScore builds its own repayment history needs no contract changes beyond the coefficients.
 - **The Stylus engine isn't explorer-verified yet.** It was deployed with cargo-stylus 0.10.9, the first version that replays a pinned `wasm-opt` step. Arbiscan's Stylus verifier currently goes up to 0.10.7, and Blockscout's up to 0.6.1. Until they add it, the official `cargo stylus verify` check reproduces the deployed program exactly; see Live deployment.
 

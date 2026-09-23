@@ -60,9 +60,17 @@ Remaining findings, and why they're accepted:
 - **Missing zero-address checks on engine `init`/`setImporter`:** `vault = 0` during deployment is intentional (see front-running above), and both are owner-only.
 - **`reentrancy-events` in `importCredit`:** the event is emitted after the call to the trusted, immutable engine.
 
+## Score-gaming protections (tested)
+
+Found through adversarial testing (`contracts/test_vectors/model_properties.ts`, `contracts/lending_vault/scripts/scenarios.ts`) and fixed:
+- **Unpaid overdue loans faded over time**, so a borrower who stopped paying slowly regained score. They now count as a full liquidation that doesn't fade while unpaid, and cap the score at 599 (Subprime) until repaid.
+- **Dust farming:** 64 simultaneous $1 loans held two weeks lifted a fresh wallet to Near-Prime. The vault now allows at most 3 open loans per borrower per market (`MAX_OPEN_LOANS`).
+- **Burying liquidations:** new loans could push liquidations out of the 64-loan scoring window. The engine now keeps an index of liquidated loans, and the 16 most recent always count.
+- **Residual:** splitting one loan into three still earns slightly more credit (square-root weighting); bounded by the cap.
+
 ## Known limitations
 
 - The WETH collateral is a test token with a public faucet. The USDG market uses real Paxos testnet USDG; the second market uses a faucet test USDC.
 - The model's coefficients are fitted to Aave V3 (Arbitrum One) liquidation outcomes, with guardrails (`research/fit-weights`). Aave liquidations are a proxy for default, and attested Aave activity/volume is farmable, which is why their weights are capped.
-- The Stylus engine isn't explorer-verified yet. It was deployed with `cargo stylus deploy` 0.10.9 from a pinned Docker build, and explorers don't support that version yet (Arbiscan tops out at 0.10.7). Anyone can confirm the deployed program matches this repository with `cargo stylus verify --deployment-tx 0x68a2f427ab6fec266c63f7b6db870305e6d3967da28987d5c747039020f5c43d`.
+- The Stylus engine isn't explorer-verified yet. It was deployed with `cargo stylus deploy` 0.10.9 from a pinned Docker build, and explorers don't support that version yet (Arbiscan tops out at 0.10.7). Anyone can confirm the deployed program matches this repository with `cargo stylus verify --deployment-tx 0x74f0a965f1fe5f8400749aefa02183587d3b80d8a59d934da033de9c76fe897f`.
 - The liquidation bonus for Prime borrowers is small (1.5%). On mainnet this may need tuning to keep liquidators interested.

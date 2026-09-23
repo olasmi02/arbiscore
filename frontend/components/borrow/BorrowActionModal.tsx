@@ -10,6 +10,9 @@ import { useAccount } from 'wagmi';
 import { useCreditVaultTx } from '@/hooks/useCreditVaultTx';
 import { Shield, ArrowRight, CheckCircle, AlertCircle } from 'lucide-react';
 
+/** Mirrors ArbiCreditVault.MAX_OPEN_LOANS. */
+const MAX_OPEN_LOANS = 3;
+
 interface BorrowActionModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -17,7 +20,7 @@ interface BorrowActionModalProps {
 }
 
 export function BorrowActionModal({ isOpen, onClose, quote }: BorrowActionModalProps) {
-  const { isSandboxMode, borrowSimulationLoan, collateralState } = useSandbox();
+  const { isSandboxMode, borrowSimulationLoan, collateralState, activePersona } = useSandbox();
   const { isConnected } = useAccount();
   const { market: mkt } = useMarket();
   const { borrow, txStatus } = useCreditVaultTx(() => {
@@ -26,8 +29,11 @@ export function BorrowActionModal({ isOpen, onClose, quote }: BorrowActionModalP
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Same rule as the vault: the loan's collateral must come from free (unlocked) WETH
+  // Same rules as the vault: the loan's collateral must come from free (unlocked) WETH, and a
+  // borrower holds at most MAX_OPEN_LOANS open loans per market (enforced on-chain in live mode)
   const hasEnoughCollateral = collateralState.freeETH >= quote.requiredCollateralETH;
+  const openLoans = activePersona.activeLoans.filter((l) => l.status === 'Active').length;
+  const atLoanLimit = (isSandboxMode || !isConnected) && openLoans >= MAX_OPEN_LOANS;
 
   const handleExecuteBorrow = async () => {
     if (isSandboxMode || !isConnected) {
@@ -122,6 +128,12 @@ export function BorrowActionModal({ isOpen, onClose, quote }: BorrowActionModalP
           </div>
         </div>
 
+        {atLoanLimit && (
+          <div role="alert" className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300">
+            You already have {openLoans} open loans, the maximum per market. Repay one before borrowing again.
+          </div>
+        )}
+
         {!hasEnoughCollateral && (
           <div role="alert" className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300">
             Not enough free collateral: this loan needs {quote.requiredCollateralETH.toFixed(4)} WETH at your tier
@@ -138,7 +150,7 @@ export function BorrowActionModal({ isOpen, onClose, quote }: BorrowActionModalP
             variant="primary"
             size="md"
             onClick={handleExecuteBorrow}
-            disabled={!hasEnoughCollateral}
+            disabled={!hasEnoughCollateral || atLoanLimit}
             isLoading={
               isSubmitting ||
               txStatus.step === 'signing_action' ||

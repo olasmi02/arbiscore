@@ -24,7 +24,11 @@ export interface Evaluation {
 }
 
 const toUnit = (f: Features) =>
-  Object.fromEntries(Object.entries(f).map(([k, v]) => [k, Number(v) / Number(S)])) as FactorBreakdown['features'];
+  Object.fromEntries(
+    Object.entries(f)
+      .filter(([k]) => k !== 'inDefault')
+      .map(([k, v]) => [k, Number(v) / Number(S)])
+  ) as FactorBreakdown['features'];
 
 /** Runs the ArbiScore model and summarizes the result for the UI. */
 export function evaluate(input: ModelInput): Evaluation {

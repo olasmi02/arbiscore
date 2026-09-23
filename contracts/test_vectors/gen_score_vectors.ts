@@ -58,6 +58,19 @@ edge(NOW - 400n * DAY, 10n, 1000n, [{ amountUsd: 0n, borrowTs: NOW - 50n * DAY, 
 edge(NOW - 400n * DAY, 10n, 1000n, [{ amountUsd: 5000n, borrowTs: NOW, dueTs: NOW + 30n * DAY, closeTs: NOW + 99n, status: LOAN_REPAID }]);
 edge(NOW - 400n * DAY, 10n, 1000n, [{ amountUsd: 5000n, borrowTs: NOW - 90n * DAY, dueTs: NOW - 60n * DAY, closeTs: 0n, status: LOAN_OPEN }]);
 
+// Liquidations older than the 64-loan window still count (up to the 16 most recent), and an
+// overdue loan caps the score at Subprime
+const repaidDust = (n: number, daysAgo: number) =>
+  Array.from({ length: n }, () => specToEntry({ amountUsd: 1, borrowedDaysAgo: daysAgo, status: LOAN_REPAID, daysLate: 0 }, NOW));
+const liq = (amount: number, daysAgo: number) => specToEntry({ amountUsd: amount, borrowedDaysAgo: daysAgo, status: LOAN_LIQUIDATED, daysLate: 5 }, NOW);
+edge(NOW - 400n * DAY, 50n, 20_000n, [liq(5_000, 150), liq(4_000, 120), ...repaidDust(64, 45)]);
+edge(NOW - 900n * DAY, 50n, 20_000n, [...Array.from({ length: 20 }, (_, i) => liq(1_000 + i * 100, 600 - i * 20)), ...repaidDust(64, 45)]);
+edge(NOW - 400n * DAY, 50n, 20_000n, [liq(3_000, 200), ...repaidDust(40, 60), liq(2_000, 50), ...repaidDust(30, 40)]);
+edge(NOW - 540n * DAY, 140n, 48_000n, [
+  ...PERSONA_PROFILES.alice.loans.filter((l) => l.status !== LOAN_OPEN).map((l) => specToEntry(l, NOW)),
+  specToEntry({ amountUsd: 10_000, borrowedDaysAgo: 45, status: LOAN_OPEN, daysLate: 0 }, NOW),
+]);
+
 // Randomized histories, including > MAX_HISTORY loans and very old / very late loans
 for (let c = 0; c < 400; c++) {
   const age = ri(0, 2000);

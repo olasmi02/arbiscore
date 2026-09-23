@@ -32,6 +32,7 @@ contract SolidityScoreEngine is IArbiScoreEngine {
         uint16 lastCalculatedScore;
         bool isInitialized;
         StoredLoan[] history;
+        uint32[] liquidationIndex; // history indices of liquidated loans, oldest first
     }
 
     address public override owner;
@@ -99,6 +100,15 @@ contract SolidityScoreEngine is IArbiScoreEngine {
         uint256 len = p.history.length;
         uint256 start = len > ArbiScoreModel.MAX_HISTORY ? len - ArbiScoreModel.MAX_HISTORY : 0;
         ArbiScoreModel.Acc memory acc;
+        // The most recent liquidations still count when newer loans have pushed them out of the window
+        uint256 n = p.liquidationIndex.length;
+        for (uint256 j = n > ArbiScoreModel.MAX_OLD_LIQUIDATIONS ? n - ArbiScoreModel.MAX_OLD_LIQUIDATIONS : 0; j < n; ++j) {
+            uint256 ix = p.liquidationIndex[j];
+            if (ix < start) {
+                StoredLoan storage o = p.history[ix];
+                acc.add(ArbiScoreModel.Loan(o.amountUsd, o.borrowTs, o.dueTs, o.closeTs, o.status), block.timestamp);
+            }
+        }
         for (uint256 i = start; i < len; ++i) {
             StoredLoan storage e = p.history[i];
             acc.add(ArbiScoreModel.Loan(e.amountUsd, e.borrowTs, e.dueTs, e.closeTs, e.status), block.timestamp);
@@ -209,6 +219,7 @@ contract SolidityScoreEngine is IArbiScoreEngine {
         if (liquidated) {
             e.status = ArbiScoreModel.LOAN_LIQUIDATED;
             p.liquidations += 1;
+            p.liquidationIndex.push(uint32(historyIndex));
         } else {
             e.status = ArbiScoreModel.LOAN_REPAID;
             p.loansRepaid += 1;
@@ -266,6 +277,7 @@ contract SolidityScoreEngine is IArbiScoreEngine {
         uint32[] memory daysLate
     ) private {
         delete p.history;
+        delete p.liquidationIndex;
         uint32 repaid;
         uint32 liquidated;
         uint256 n = amountsUsd.length;
@@ -274,7 +286,10 @@ contract SolidityScoreEngine is IArbiScoreEngine {
             ArbiScoreModel.Loan memory l =
                 ArbiScoreModel.specToLoan(amountsUsd[i], borrowedDaysAgo[i], statuses[i], daysLate[i], block.timestamp);
             if (l.status == ArbiScoreModel.LOAN_REPAID) repaid++;
-            else if (l.status == ArbiScoreModel.LOAN_LIQUIDATED) liquidated++;
+            else if (l.status == ArbiScoreModel.LOAN_LIQUIDATED) {
+                liquidated++;
+                p.liquidationIndex.push(uint32(i));
+            }
             p.history.push(StoredLoan(l.amountUsd, _u48(l.borrowTs), _u48(l.dueTs), _u48(l.closeTs), l.status));
         }
         p.loansTaken = uint32(n);

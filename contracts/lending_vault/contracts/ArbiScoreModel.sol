@@ -17,6 +17,10 @@ library ArbiScoreModel {
     uint16 internal constant MIN_SCORE = 300;
     uint16 internal constant MAX_SCORE = 850;
     uint256 internal constant MAX_HISTORY = 64;
+    /// Most recent liquidations still scored when they're older than the MAX_HISTORY window.
+    uint256 internal constant MAX_OLD_LIQUIDATIONS = 16;
+    /// Highest score while any loan is overdue and unpaid (top of the Subprime tier).
+    uint16 internal constant DEFAULT_CAP = 599;
     uint256 internal constant LOAN_TERM_DAYS = 30;
 
     uint8 internal constant LOAN_OPEN = 0;
@@ -59,6 +63,7 @@ library ArbiScoreModel {
         uint256 l;
         uint256 openPrincipal;
         uint256 maxRepaid;
+        bool overdue;
     }
 
     function exp2Neg(uint256 x) internal pure returns (uint256) {
@@ -119,6 +124,7 @@ library ArbiScoreModel {
                     return;
                 }
                 // Overdue and unpaid: a current default, so it doesn't fade while it stays unpaid
+                acc.overdue = true;
                 refTs = nowTs;
             } else {
                 refTs = loan.closeTs;
@@ -167,7 +173,10 @@ library ArbiScoreModel {
 
             uint256 p = pos >= neg ? _sigmoidPos(pos - neg) : S - _sigmoidPos(neg - pos);
             uint256 score = MIN_SCORE + (uint256(MAX_SCORE - MIN_SCORE) * p) / S;
-            return uint16(score > MAX_SCORE ? MAX_SCORE : score);
+            if (score > MAX_SCORE) score = MAX_SCORE;
+            // No better than Subprime while a loan is overdue and unpaid
+            if (acc.overdue && score > DEFAULT_CAP) score = DEFAULT_CAP;
+            return uint16(score);
         }
     }
 
@@ -180,6 +189,15 @@ library ArbiScoreModel {
     ) internal pure returns (uint16) {
         Acc memory acc;
         uint256 start = loans.length > MAX_HISTORY ? loans.length - MAX_HISTORY : 0;
+        // Liquidations can't be pushed out of the window with new loans: the most recent
+        // MAX_OLD_LIQUIDATIONS liquidations still count even when they're older than it.
+        uint256 seen;
+        for (uint256 i = loans.length; i > 0; --i) {
+            if (loans[i - 1].status == LOAN_LIQUIDATED) {
+                if (++seen > MAX_OLD_LIQUIDATIONS) break;
+                if (i - 1 < start) add(acc, loans[i - 1], nowTs);
+            }
+        }
         for (uint256 i = start; i < loans.length; ++i) {
             add(acc, loans[i], nowTs);
         }

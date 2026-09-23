@@ -19,6 +19,10 @@ const U64_MAX = (1n << 64n) - 1n;
 export const MIN_SCORE = 300n;
 export const MAX_SCORE = 850n;
 export const MAX_HISTORY = 64;
+/** Most recent liquidations still scored when they're older than the MAX_HISTORY window. */
+export const MAX_OLD_LIQUIDATIONS = 16;
+/** Highest score while any loan is overdue and unpaid (top of the Subprime tier). */
+export const DEFAULT_CAP = 599;
 
 export const LOAN_OPEN = 0;
 export const LOAN_REPAID = 1;
@@ -77,6 +81,8 @@ export interface Features {
   activity: bigint;
   volume: bigint;
   utilization: bigint;
+  /** Some loan is open past its due date: the score is capped at Subprime until it's repaid. */
+  inDefault: boolean;
 }
 
 /** 2^(-x) for x >= 0, x and result in fixed-point S. */
@@ -124,14 +130,26 @@ export function computeFeatures(input: ModelInput): Features {
   let L = 0n;
   let openPrincipal = 0n;
   let maxRepaid = 0n;
+  let overdue = false;
 
   const start = loans.length > MAX_HISTORY ? loans.length - MAX_HISTORY : 0;
-  for (let i = start; i < loans.length; i++) {
-    const loan = loans[i];
+  // Liquidations can't be pushed out of the window with new loans: the most recent
+  // MAX_OLD_LIQUIDATIONS liquidations still count even when they're older than it.
+  const scored: LoanEntry[] = [];
+  let seen = 0;
+  for (let i = loans.length - 1; i >= 0; i--) {
+    if (loans[i].status !== LOAN_LIQUIDATED) continue;
+    if (++seen > MAX_OLD_LIQUIDATIONS) break;
+    if (i < start) scored.push(loans[i]);
+  }
+  for (let i = start; i < loans.length; i++) scored.push(loans[i]);
+
+  for (const loan of scored) {
     let refTs: bigint;
     if (loan.status === LOAN_OPEN) {
       openPrincipal += loan.amountUsd;
       if (now <= loan.dueTs) continue;
+      overdue = true;
       refTs = now; // overdue and unpaid: a current default, so it doesn't fade while it stays unpaid
     } else {
       refTs = loan.closeTs;
@@ -173,6 +191,7 @@ export function computeFeatures(input: ModelInput): Features {
     activity: sat(input.totalTxs, PARAMS.txHalf),
     volume: sat(input.volumeUsd > U64_MAX ? U64_MAX : input.volumeUsd, PARAMS.volHalf),
     utilization: sat(openPrincipal, maxRepaid + PARAMS.utilFloor),
+    inDefault: overdue,
   };
 }
 
@@ -194,8 +213,10 @@ export function probabilityFromFeatures(f: Features): bigint {
 
 export function scoreFromFeatures(f: Features): number {
   const p = probabilityFromFeatures(f);
-  const score = MIN_SCORE + ((MAX_SCORE - MIN_SCORE) * p) / S;
-  return Number(score > MAX_SCORE ? MAX_SCORE : score);
+  const raw = MIN_SCORE + ((MAX_SCORE - MIN_SCORE) * p) / S;
+  const score = Number(raw > MAX_SCORE ? MAX_SCORE : raw);
+  // No better than Subprime while a loan is overdue and unpaid
+  return f.inDefault ? Math.min(score, DEFAULT_CAP) : score;
 }
 
 export function computeScore(input: ModelInput): number {
@@ -229,10 +250,16 @@ export function specToEntry(spec: LoanSpec, now: bigint): LoanEntry {
   return { amountUsd: BigInt(spec.amountUsd), borrowTs, dueTs, closeTs, status: spec.status };
 }
 
-/** Leave-one-out attribution: score points each feature adds vs. a neutral value. */
-export function featureImpacts(f: Features): Record<keyof Features, number> {
-  const base = scoreFromFeatures(f);
-  const neutral: Features = {
+export type ScoredFeature = Exclude<keyof Features, 'inDefault'>;
+
+/**
+ * Leave-one-out attribution: score points each feature adds vs. a neutral value. Computed on the
+ * uncapped model; the default cap is reported separately (Features.inDefault).
+ */
+export function featureImpacts(f: Features): Record<ScoredFeature, number> {
+  const uncapped = { ...f, inDefault: false };
+  const base = scoreFromFeatures(uncapped);
+  const neutral: Omit<Features, 'inDefault'> = {
     quality: PARAMS.priorQuality,
     depth: 0n,
     liquidation: 0n,
@@ -241,9 +268,9 @@ export function featureImpacts(f: Features): Record<keyof Features, number> {
     volume: 0n,
     utilization: 0n,
   };
-  const out = {} as Record<keyof Features, number>;
-  for (const k of Object.keys(neutral) as (keyof Features)[]) {
-    out[k] = base - scoreFromFeatures({ ...f, [k]: neutral[k] });
+  const out = {} as Record<ScoredFeature, number>;
+  for (const k of Object.keys(neutral) as ScoredFeature[]) {
+    out[k] = base - scoreFromFeatures({ ...uncapped, [k]: neutral[k] });
   }
   return out;
 }

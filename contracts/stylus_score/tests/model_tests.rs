@@ -85,14 +85,34 @@ fn late_repayment_scores_below_on_time_and_old_liquidations_fade() {
 }
 
 #[test]
-fn only_last_64_loans_are_scored() {
+fn repayments_older_than_64_loans_drop_out_but_liquidations_do_not() {
     let good: Vec<LoanEntry> = (0..64).map(|i| spec_to_entry(1_000, 10 + i, LOAN_REPAID, 0, NOW)).collect();
-    let mut with_old_bad = vec![spec_to_entry(50_000, 700, LOAN_LIQUIDATED, 0, NOW); 10];
+    // Older repaid loans are outside the window and don't count
+    let mut with_old_good = vec![spec_to_entry(50_000, 300, LOAN_REPAID, 0, NOW); 10];
+    with_old_good.extend_from_slice(&good);
+    let base = compute_score(NOW - 800 * DAY, 100, 10_000, &good, NOW);
+    assert_eq!(base, compute_score(NOW - 800 * DAY, 100, 10_000, &with_old_good, NOW));
+    // Older liquidations can't be buried under new loans: they still count
+    let mut with_old_bad = vec![spec_to_entry(5_000, 150, LOAN_LIQUIDATED, 0, NOW); 2];
     with_old_bad.extend_from_slice(&good);
-    assert_eq!(
-        compute_score(NOW - 800 * DAY, 100, 10_000, &good, NOW),
-        compute_score(NOW - 800 * DAY, 100, 10_000, &with_old_bad, NOW)
-    );
+    let buried = compute_score(NOW - 800 * DAY, 100, 10_000, &with_old_bad, NOW);
+    assert!(buried + 50 < base, "buried liquidations must still hurt: {base} vs {buried}");
+    // Only the 16 most recent liquidations are kept outside the window (bounded gas)
+    let mut many = vec![spec_to_entry(5_000, 150, LOAN_LIQUIDATED, 0, NOW); 17];
+    many.extend_from_slice(&good);
+    let mut sixteen = vec![spec_to_entry(5_000, 150, LOAN_LIQUIDATED, 0, NOW); 16];
+    sixteen.extend_from_slice(&good);
+    assert_eq!(compute_score(NOW - 800 * DAY, 100, 10_000, &many, NOW), compute_score(NOW - 800 * DAY, 100, 10_000, &sixteen, NOW));
+}
+
+#[test]
+fn score_is_capped_at_subprime_while_a_loan_is_overdue() {
+    let mut loans: Vec<LoanEntry> = (0..12).map(|i| spec_to_entry(10_000, 60 + 30 * i, LOAN_REPAID, 0, NOW)).collect();
+    let prime = compute_score(NOW - 800 * DAY, 200, 80_000, &loans, NOW);
+    assert!(prime >= 750, "setup should be Prime, got {prime}");
+    loans.push(spec_to_entry(1_000, 45, LOAN_OPEN, 0, NOW)); // 15 days overdue
+    let capped = compute_score(NOW - 800 * DAY, 200, 80_000, &loans, NOW);
+    assert!(capped <= DEFAULT_CAP, "overdue loan must cap the score: {capped}");
 }
 
 #[test]

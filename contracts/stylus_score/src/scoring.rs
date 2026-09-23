@@ -20,6 +20,10 @@ pub const MIN_SCORE: u16 = 300;
 pub const MAX_SCORE: u16 = 850;
 /// Only the most recent loans are scored, bounding gas.
 pub const MAX_HISTORY: usize = 64;
+/// Most recent liquidations still scored when they're older than the MAX_HISTORY window.
+pub const MAX_OLD_LIQUIDATIONS: usize = 16;
+/// Highest score while any loan is overdue and unpaid (top of the Subprime tier).
+pub const DEFAULT_CAP: u16 = 599;
 
 pub const LOAN_OPEN: u8 = 0;
 pub const LOAN_REPAID: u8 = 1;
@@ -84,6 +88,8 @@ pub struct Features {
     pub activity: u128,
     pub volume: u128,
     pub utilization: u128,
+    /// Some loan is open past its due date: the score is capped at Subprime until it's repaid.
+    pub in_default: bool,
 }
 
 /// 2^(-x) for x >= 0; x and result in fixed-point S.
@@ -145,6 +151,7 @@ pub struct Accumulator {
     l: u128,
     open_principal: u128,
     max_repaid: u128,
+    overdue: bool,
 }
 
 impl Accumulator {
@@ -161,6 +168,7 @@ impl Accumulator {
                 return;
             }
             // Overdue and unpaid: a current default, so it doesn't fade while it stays unpaid
+            self.overdue = true;
             now
         } else {
             loan.close_ts
@@ -215,6 +223,7 @@ impl Accumulator {
             activity: sat(total_txs as u128, TX_HALF),
             volume: sat(volume_usd as u128, VOL_HALF),
             utilization: sat(self.open_principal, self.max_repaid + UTIL_FLOOR),
+            in_default: self.overdue,
         }
     }
 }
@@ -228,6 +237,20 @@ pub fn compute_features(
 ) -> Features {
     let start = loans.len().saturating_sub(MAX_HISTORY);
     let mut acc = Accumulator::default();
+    // Liquidations can't be pushed out of the window with new loans: the most recent
+    // MAX_OLD_LIQUIDATIONS liquidations still count even when they're older than it.
+    let mut seen = 0;
+    for i in (0..loans.len()).rev() {
+        if loans[i].status == LOAN_LIQUIDATED {
+            seen += 1;
+            if seen > MAX_OLD_LIQUIDATIONS {
+                break;
+            }
+            if i < start {
+                acc.add(&loans[i], now);
+            }
+        }
+    }
     for loan in &loans[start..] {
         acc.add(loan, now);
     }
@@ -252,8 +275,9 @@ pub fn probability(f: &Features) -> u128 {
 
 pub fn score_from_features(f: &Features) -> u16 {
     let p = probability(f);
-    let score = MIN_SCORE as u128 + ((MAX_SCORE - MIN_SCORE) as u128 * p) / S;
-    score.min(MAX_SCORE as u128) as u16
+    let score = (MIN_SCORE as u128 + ((MAX_SCORE - MIN_SCORE) as u128 * p) / S).min(MAX_SCORE as u128) as u16;
+    // No better than Subprime while a loan is overdue and unpaid
+    if f.in_default { score.min(DEFAULT_CAP) } else { score }
 }
 
 /// Benchmark "richer model": averages the score over `horizons` recency half-lives

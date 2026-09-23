@@ -44,6 +44,9 @@ contract ArbiCreditVault is ERC4626, IArbiCreditVault, ReentrancyGuard, Pausable
     uint256 public constant GRACE_PERIOD = 3 days;
     uint256 public constant TRADITIONAL_DEFI_RATIO_BPS = 15000;
     uint256 public constant MIN_BORROW_USD = 1; // whole USD
+    /// Open loans a borrower may hold at once in this market. Credit accrues per loan, so without
+    /// a cap many tiny concurrent loans could build a score faster than real borrowing.
+    uint256 public constant MAX_OPEN_LOANS = 3;
     uint256 private constant BPS = 10_000;
     uint256 private constant YEAR = 365 days;
 
@@ -61,6 +64,8 @@ contract ArbiCreditVault is ERC4626, IArbiCreditVault, ReentrancyGuard, Pausable
     uint256 public nextLoanId = 1;
     mapping(address => uint256) public override userCollateral;
     mapping(address => uint256) public override userLockedCollateral;
+    /// Loans currently open per borrower in this market (see MAX_OPEN_LOANS).
+    mapping(address => uint256) public openLoanCount;
     mapping(uint256 => LoanRecord) private _loans;
     mapping(address => uint256[]) private _userLoanIds;
 
@@ -96,6 +101,7 @@ contract ArbiCreditVault is ERC4626, IArbiCreditVault, ReentrancyGuard, Pausable
     error LoanNotFound();
     error LoanNotActive();
     error LoanNotLiquidatable();
+    error TooManyOpenLoans(uint256 max);
 
     constructor(
         address _scoreEngine,
@@ -237,6 +243,7 @@ contract ArbiCreditVault is ERC4626, IArbiCreditVault, ReentrancyGuard, Pausable
     function borrow(uint256 amount) external override nonReentrant whenNotPaused returns (uint256 loanId) {
         uint256 amountUsd = (amount * _debtToUsd18) / 1e18;
         if (amountUsd < MIN_BORROW_USD) revert BorrowTooSmall();
+        if (openLoanCount[msg.sender] >= MAX_OPEN_LOANS) revert TooManyOpenLoans(MAX_OPEN_LOANS);
         uint256 cash = IERC20(asset()).balanceOf(address(this));
         if (amount > cash) revert InsufficientLiquidity(cash, amount);
 
@@ -247,6 +254,7 @@ contract ArbiCreditVault is ERC4626, IArbiCreditVault, ReentrancyGuard, Pausable
 
         uint16 apr = quoteAprBps(tier, amount);
         userLockedCollateral[msg.sender] += required;
+        openLoanCount[msg.sender] += 1;
         totalPrincipal += amount;
         _rateSum += amount * apr;
         _rateTimeSum += amount * apr * block.timestamp;
@@ -294,6 +302,7 @@ contract ArbiCreditVault is ERC4626, IArbiCreditVault, ReentrancyGuard, Pausable
         _rateSum -= loan.principal * loan.aprBps;
         _rateTimeSum -= loan.principal * loan.aprBps * loan.borrowTimestamp;
         userLockedCollateral[loan.borrower] -= loan.collateralLocked;
+        openLoanCount[loan.borrower] -= 1;
     }
 
     /// @notice Repays principal + interest. Anyone may repay on a borrower's behalf.

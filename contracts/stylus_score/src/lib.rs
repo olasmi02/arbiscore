@@ -11,7 +11,7 @@ use stylus_sdk::{
     prelude::*,
 };
 
-use scoring::{LoanEntry, LOAN_LIQUIDATED, LOAN_OPEN, LOAN_REPAID, MAX_HISTORY};
+use scoring::{LoanEntry, LOAN_LIQUIDATED, LOAN_OPEN, LOAN_REPAID, MAX_HISTORY, MAX_OLD_LIQUIDATIONS};
 
 type U48 = Uint<48, 1>;
 const U48_MAX: u64 = (1u64 << 48) - 1;
@@ -38,6 +38,9 @@ sol_storage! {
         uint16 last_calculated_score;
         bool is_initialized;
         StoredLoan[] history;
+        /// History indices of liquidated loans, oldest first, so liquidations outside the
+        /// scoring window can still be found without reading the whole history.
+        uint32[] liquidation_index;
     }
 
     /// One packed slot per loan: 64 + 3*48 + 8 = 216 bits.
@@ -140,6 +143,19 @@ impl ArbiScoreEngine {
         let len = profile.history.len();
         let start = len.saturating_sub(MAX_HISTORY);
         let mut acc = scoring::Accumulator::default();
+        // The most recent liquidations still count when newer loans have pushed them out of the window
+        let liqs = &profile.liquidation_index;
+        let n = liqs.len();
+        for j in n.saturating_sub(MAX_OLD_LIQUIDATIONS)..n {
+            if let Some(ix) = liqs.get(j) {
+                let ix = ix.to::<usize>();
+                if ix < start {
+                    if let Some(e) = profile.history.getter(ix) {
+                        acc.add(&to_entry(&e), now);
+                    }
+                }
+            }
+        }
         for i in start..len {
             if let Some(e) = profile.history.getter(i) {
                 acc.add(&to_entry(&e), now);
@@ -351,6 +367,7 @@ impl ArbiScoreEngine {
             if liquidated {
                 let n = profile.liquidations.get().to::<u32>();
                 profile.liquidations.set(U32::from(n.saturating_add(1)));
+                profile.liquidation_index.push(U32::from(history_index));
             } else {
                 let n = profile.loans_repaid.get().to::<u32>();
                 profile.loans_repaid.set(U32::from(n.saturating_add(1)));
@@ -418,12 +435,16 @@ impl ArbiScoreEngine {
 
             // Every field of each element is overwritten below, so no stale slots survive.
             unsafe { profile.history.set_len(0) };
+            unsafe { profile.liquidation_index.set_len(0) };
             let (mut repaid, mut liquidated) = (0u32, 0u32);
             for i in 0..n {
                 let l = scoring::spec_to_entry(amounts_usd[i], borrowed_days_ago[i] as u64, statuses[i], days_late[i] as u64, now);
                 match l.status {
                     LOAN_REPAID => repaid += 1,
-                    LOAN_LIQUIDATED => liquidated += 1,
+                    LOAN_LIQUIDATED => {
+                        liquidated += 1;
+                        profile.liquidation_index.push(U32::from(i as u32));
+                    }
                     _ => {}
                 }
                 let mut e = profile.history.grow();

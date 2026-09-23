@@ -13,6 +13,7 @@ export const KNOWN_ERRORS = parseAbi([
   'error LoanNotFound()',
   'error LoanNotActive()',
   'error LoanNotLiquidatable()',
+  'error TooManyOpenLoans(uint256 max)',
   // CreditImporter
   'error NotYourAttestation()',
   'error AttestationExpired()',
@@ -49,6 +50,8 @@ const MESSAGES: Record<string, (args: readonly unknown[]) => string> = {
   LoanNotFound: () => 'That loan does not exist.',
   LoanNotActive: () => 'That loan is already closed.',
   LoanNotLiquidatable: () => 'That loan is still healthy, so it cannot be liquidated.',
+  TooManyOpenLoans: ([max]) =>
+    `You already have ${String(max)} open loans in this market, the maximum. Repay one before borrowing again.`,
   NotYourAttestation: () => 'This attestation was issued for a different wallet.',
   AttestationExpired: () => 'The attestation expired before it was submitted. Please try the import again.',
   InvalidSignature: () => 'The attestation signature was not accepted on-chain.',

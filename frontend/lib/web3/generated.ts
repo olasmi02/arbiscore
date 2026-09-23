@@ -298,6 +298,17 @@ export const ARBI_CREDIT_VAULT_ABI = [
     "type": "error"
   },
   {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "max",
+        "type": "uint256"
+      }
+    ],
+    "name": "TooManyOpenLoans",
+    "type": "error"
+  },
+  {
     "inputs": [],
     "name": "ZeroAmount",
     "type": "error"
@@ -699,6 +710,19 @@ export const ARBI_CREDIT_VAULT_ABI = [
   {
     "inputs": [],
     "name": "LOAN_TERM",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "MAX_OPEN_LOANS",
     "outputs": [
       {
         "internalType": "uint256",
@@ -1388,6 +1412,25 @@ export const ARBI_CREDIT_VAULT_ABI = [
   {
     "inputs": [],
     "name": "nextLoanId",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "openLoanCount",
     "outputs": [
       {
         "internalType": "uint256",

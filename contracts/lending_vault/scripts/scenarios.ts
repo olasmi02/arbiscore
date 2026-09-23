@@ -38,31 +38,28 @@ async function main() {
   const report: string[] = [];
   const say = (s: string) => { report.push(s); console.log(s); };
 
-  // S1 Dust farming: a fresh wallet opens 64 x $1 loans at once, holds 15 days, repays all
+  // S1 Dust farming: a fresh wallet tries 64 x $1 loans at once, then farms within the 3-open-loan cap
   {
     const w = freshWallet();
     await vault.connect(w).depositCollateral(ETH(1));
     const before = await score(w.address);
-    const ids: bigint[] = [];
-    let gasBorrow = 0n;
+    let opened = 0;
     for (let i = 0; i < 64; i++) {
-      const tx = await vault.connect(w).borrow(USDG(1)); const r = await tx.wait();
-      gasBorrow += r!.gasUsed; ids.push((await vault.nextLoanId()) - 1n);
+      try { await vault.connect(w).borrow(USDG(1)); opened++; } catch { break; }
     }
-    await time.increase(15 * DAY);
-    let interest = 0n;
-    for (const id of ids) {
-      const debt = await vault.debtOf(id); interest += debt - USDG(1);
-      await vault.connect(w).repay(id);
+    say(`S1 dust farming: tried 64 concurrent $1 loans, the vault accepted ${opened} (MAX_OPEN_LOANS)`);
+    // Farm anyway, 3 at a time, 14 days per cycle, for 4 cycles (56 days)
+    for (let c = 0; c < 4; c++) {
+      if (c > 0) for (let i = 0; i < 3; i++) await vault.connect(w).borrow(USDG(1));
+      await time.increase(15 * DAY);
+      const next = await vault.nextLoanId();
+      for (let k = 1n; k <= 3n; k++) await vault.connect(w).repay(next - k);
     }
     const after = await score(w.address);
-    say(`S1 dust farming: fresh wallet ${before} -> ${after} (${tier(after)}) after 64 x $1 loans held 15 days; total interest paid ${ethers.formatUnits(interest, 6)} USDG; avg borrow gas ${gasBorrow / 64n}`);
-    // what can it borrow now?
-    const q = await vault.getBorrowQuote(w.address, USDG(100_000));
-    say(`   -> it can now borrow $100,000 at ${Number(q.requiredRatioBps) / 100}% collateral`);
+    say(`   -> after 56 days of capped farming: ${before} -> ${after} (${tier(after)})`);
   }
 
-  // S2 Burying liquidations: two real liquidations, then 64 x $1 loans push them out of the window
+  // S2 Burying liquidations: two real liquidations, then 64 x $1 loans (one at a time) push them out of the window
   {
     const w = freshWallet();
     await vault.connect(w).depositCollateral(ETH(20));
@@ -73,24 +70,25 @@ async function main() {
       await vault.connect(liquidator).liquidate(id);
     }
     const afterLiq = await score(w.address);
-    const ids: bigint[] = [];
-    for (let i = 0; i < 64; i++) { await vault.connect(w).borrow(USDG(1)); ids.push((await vault.nextLoanId()) - 1n); }
-    await time.increase(15 * DAY);
-    for (const id of ids) await vault.connect(w).repay(id);
+    for (let i = 0; i < 64; i++) {
+      await vault.connect(w).borrow(USDG(1));
+      await time.increase(15 * DAY);
+      await vault.connect(w).repay((await vault.nextLoanId()) - 1n);
+    }
     const buried = await score(w.address);
-    say(`S2 burying liquidations: after 2 liquidations ${afterLiq} (${tier(afterLiq)}) -> after 64 x $1 loans ${buried} (${tier(buried)})`);
+    say(`S2 burying liquidations: after 2 liquidations ${afterLiq} (${tier(afterLiq)}) -> after 64 more $1 loans ${buried} (${tier(buried)})`);
   }
 
-  // S3 Splitting: $10,000 as one loan vs ten $1,000 loans, same holding period
+  // S3 Splitting: $10,000 as one loan vs three $3,333 loans (the most the cap allows), same holding period
   {
     const a = freshWallet(), b = freshWallet();
     for (const w of [a, b]) await vault.connect(w).depositCollateral(ETH(60));
     await vault.connect(a).borrow(USDG(10_000)); const ida = (await vault.nextLoanId()) - 1n;
     const idsb: bigint[] = [];
-    for (let i = 0; i < 10; i++) { await vault.connect(b).borrow(USDG(1_000)); idsb.push((await vault.nextLoanId()) - 1n); }
+    for (let i = 0; i < 3; i++) { await vault.connect(b).borrow(USDG(3_333)); idsb.push((await vault.nextLoanId()) - 1n); }
     await time.increase(15 * DAY);
     await vault.connect(a).repay(ida); for (const id of idsb) await vault.connect(b).repay(id);
-    say(`S3 splitting: one $10,000 loan -> ${await score(a.address)}; ten $1,000 loans -> ${await score(b.address)}`);
+    say(`S3 splitting: one $10,000 loan -> ${await score(a.address)}; three $3,333 loans -> ${await score(b.address)}`);
   }
 
   // S4 A stranger repays someone else's loan: who gets the collateral and the credit?

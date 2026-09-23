@@ -130,6 +130,18 @@ describe("ArbiCreditVault: two-sided USDG credit market", function () {
       await expect(vault.connect(prime).borrow(USDG("0.5"))).to.be.revertedWithCustomError(vault, "BorrowTooSmall");
       await expect(vault.connect(prime).borrow(USDG(100_001))).to.be.revertedWithCustomError(vault, "InsufficientLiquidity");
     });
+
+    it("caps open loans per borrower at 3, so many tiny concurrent loans can't farm a score", async function () {
+      await vault.connect(moderate).depositCollateral(ETH(10));
+      for (let i = 0; i < 3; i++) await vault.connect(moderate).borrow(USDG(1));
+      expect(await vault.openLoanCount(moderate.address)).to.equal(3n);
+      await expect(vault.connect(moderate).borrow(USDG(1)))
+        .to.be.revertedWithCustomError(vault, "TooManyOpenLoans")
+        .withArgs(3);
+      await vault.connect(moderate).repay((await vault.nextLoanId()) - 1n);
+      expect(await vault.openLoanCount(moderate.address)).to.equal(2n);
+      await vault.connect(moderate).borrow(USDG(1)); // a slot is free again
+    });
   });
 
   describe("Repayment and the credit feedback loop", function () {
@@ -222,6 +234,32 @@ describe("ArbiCreditVault: two-sided USDG credit market", function () {
       expect(await vault.isLiquidatable(1)).to.equal(false);
       await time.increase(2 * 86400);
       expect(await vault.isLiquidatable(1)).to.equal(true);
+    });
+
+    it("keeps a liquidation in the score even after 64 newer loans push it out of the window", async function () {
+      await time.increase(34 * 86400); // prime's loan: past due + grace, liquidatable
+      await vault.connect(liquidator).liquidate(1);
+      await vault.connect(prime).depositCollateral(ETH(5));
+      for (let i = 0; i < 64; i++) {
+        await vault.connect(prime).borrow(USDG(1));
+        await vault.connect(prime).repay((await vault.nextLoanId()) - 1n);
+      }
+      const history = await engine.getLoanHistory(prime.address);
+      const liquidatedAt = history[4].findIndex((s) => Number(s) === LIQUIDATED);
+      expect(history[4].length - liquidatedAt).to.be.greaterThan(64); // outside the 64-loan window
+      // The liquidation still counts, so 64 cheap repayments don't restore Prime
+      expect(Number(await engine.calculateScore(prime.address))).to.be.lessThan(750);
+    });
+
+    it("caps the score at Subprime while a loan is overdue and unpaid", async function () {
+      // moderate's only loan is this one
+      await vault.connect(moderate).borrow(USDG(1_000));
+      const id = (await vault.nextLoanId()) - 1n;
+      expect(Number(await engine.calculateScore(moderate.address))).to.be.greaterThan(599);
+      await time.increase(32 * 86400); // 2 days overdue, still unpaid
+      expect(Number(await engine.calculateScore(moderate.address))).to.be.lessThanOrEqual(599);
+      await vault.connect(moderate).repay(id); // repaying, even late, lifts the cap
+      expect(Number(await engine.calculateScore(moderate.address))).to.be.greaterThan(599);
     });
 
     it("rejects liquidating a repaid or already-liquidated loan", async function () {

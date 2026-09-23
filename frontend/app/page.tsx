@@ -8,6 +8,7 @@ import { JudgeSandbox } from '@/components/sandbox/JudgeSandbox';
 import { PositionManager } from '@/components/positions/PositionManager';
 import { LendingPanel } from '@/components/lending/LendingPanel';
 import { ImportCreditCard } from '@/components/credit/ImportCreditCard';
+import { ModeBanner } from '@/components/sandbox/ModeBanner';
 import { TransactionModal } from '@/components/web3/TransactionModal';
 import { useSandbox } from '@/lib/context/SandboxContext';
 import { useCreditVaultTx } from '@/hooks/useCreditVaultTx';
@@ -15,7 +16,7 @@ import { CONTRACT_ADDRESSES, MARKETS, AVAILABLE_MARKETS } from '@/lib/web3/addre
 import { ExternalLink, ShieldCheck, Cpu, Terminal, Layers } from 'lucide-react';
 
 export default function DashboardPage() {
-  const { activePersona, isSandboxMode } = useSandbox();
+  const { activePersona, isLiveMode } = useSandbox();
   const { txStatus, resetTx } = useCreditVaultTx();
 
   return (
@@ -23,12 +24,20 @@ export default function DashboardPage() {
       <Header />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+        <ModeBanner />
+
         {/* Top Hero Banner */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 rounded-2xl bg-zinc-950/60 border border-zinc-800/80 shadow-fintech">
           <div>
             <div className="flex items-center gap-2 mb-1.5">
-              <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
-                Live Protocol
+              <span
+                className={
+                  isLiveMode
+                    ? 'whitespace-nowrap px-2 py-0.5 rounded text-[10px] font-mono uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold'
+                    : 'whitespace-nowrap px-2 py-0.5 rounded text-[10px] font-mono uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/20 font-bold'
+                }
+              >
+                {isLiveMode ? 'Live · your wallet' : 'Sandbox · sample data'}
               </span>
               <span className="text-xs font-mono text-zinc-500">•</span>
               <span className="text-xs font-mono text-zinc-400">

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useAccount } from 'wagmi';
 import { BorrowerPersona, PersonaId } from '@/lib/types';
 import { PERSONA_META, buildPersona, initialPersonaLoans, type SandboxLoan } from '@/lib/personas';
@@ -65,6 +65,14 @@ export function SandboxProvider({ children }: { children: React.ReactNode }) {
   const { isConnected } = useAccount();
   const live = useOnChainBorrower();
   const isLiveMode = !isSandboxMode && isConnected;
+
+  // Connecting a wallet switches to the live on-chain view; disconnecting returns to the sandbox.
+  // Only the transition triggers this, so users can still flip back to the sandbox while connected.
+  const wasConnected = useRef(isConnected);
+  useEffect(() => {
+    if (isConnected !== wasConnected.current) setIsSandboxMode(!isConnected);
+    wasConnected.current = isConnected;
+  }, [isConnected]);
 
   const sandboxPersonas = useMemo(
     () =>

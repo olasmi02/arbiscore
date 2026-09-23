@@ -128,18 +128,29 @@ export function SandboxProvider({ children }: { children: React.ReactNode }) {
   };
 
   const simulateRepayment = useCallback(() => {
+    const openLoan = states[activePersonaId].loans.find((l) => l.status === LOAN_OPEN);
+    const late = openLoan ? Math.max(0, openLoan.borrowedDaysAgo - 30) : 0;
     update(
       (s) => closeLoan(s, LOAN_REPAID),
-      (b, a) => `✓ On-time repayment recorded. Score ${delta(b, a)}, re-scored by the model.`
+      (b, a) =>
+        !openLoan
+          ? `No open loan to repay, so a new $1,000 loan repaid on time was added. Score ${delta(b, a)}.`
+          : late > 0
+            ? `Repayment recorded ${late} days late. Score ${delta(b, a)}: late repayments earn less credit than on-time ones.`
+            : `✓ On-time repayment recorded. Score ${delta(b, a)}, re-scored by the model.`
     );
-  }, [update]);
+  }, [update, states, activePersonaId]);
 
   const simulateLiquidation = useCallback(() => {
+    const openLoan = states[activePersonaId].loans.find((l) => l.status === LOAN_OPEN);
     update(
       (s) => closeLoan(s, LOAN_LIQUIDATED),
-      (b, a) => `⚠ Liquidation recorded as a default. Score ${delta(b, a)}; collateral ratio re-tiered.`
+      (b, a) =>
+        openLoan
+          ? `⚠ Liquidation recorded as a default. Score ${delta(b, a)}; collateral ratio re-tiered.`
+          : `⚠ No open loan, so a new $1,000 loan recorded as liquidated was added. Score ${delta(b, a)}.`
     );
-  }, [update]);
+  }, [update, states, activePersonaId]);
 
   const resetSimulation = useCallback(() => {
     setStates((prev) => ({ ...prev, [activePersonaId]: initialState(activePersonaId) }));
@@ -196,7 +207,9 @@ export function SandboxProvider({ children }: { children: React.ReactNode }) {
         (b, a) =>
           unseasoned
             ? `Loan #${loanId} repaid after ${loan!.borrowedDaysAgo}d. Score ${delta(b, a)}: loans held under 14 days earn little or no credit (blocks wash-borrowing). Try Fast-forward first.`
-            : `Loan #${loanId} repaid on time. Score ${delta(b, a)}.`
+            : loan !== undefined && loan.borrowedDaysAgo > 30
+              ? `Loan #${loanId} repaid ${loan.borrowedDaysAgo - 30} days late. Score ${delta(b, a)}: late repayments earn less credit.`
+              : `Loan #${loanId} repaid on time. Score ${delta(b, a)}.`
       );
     },
     [update, states, activePersonaId]

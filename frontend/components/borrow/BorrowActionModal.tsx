@@ -26,9 +26,8 @@ export function BorrowActionModal({ isOpen, onClose, quote }: BorrowActionModalP
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const hasEnoughCollateral =
-    isSandboxMode ||
-    collateralState.freeETH >= quote.requiredCollateralETH;
+  // Same rule as the vault: the loan's collateral must come from free (unlocked) WETH
+  const hasEnoughCollateral = collateralState.freeETH >= quote.requiredCollateralETH;
 
   const handleExecuteBorrow = async () => {
     if (isSandboxMode || !isConnected) {
@@ -123,6 +122,13 @@ export function BorrowActionModal({ isOpen, onClose, quote }: BorrowActionModalP
           </div>
         </div>
 
+        {!hasEnoughCollateral && (
+          <div role="alert" className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300">
+            Not enough free collateral: this loan needs {quote.requiredCollateralETH.toFixed(4)} WETH at your tier
+            and you have {collateralState.freeETH.toFixed(4)} WETH free. Deposit more WETH or borrow less.
+          </div>
+        )}
+
         {/* Action Buttons */}
         <div className="flex items-center justify-end gap-3 pt-2">
           <Button variant="outline" size="md" onClick={onClose} disabled={isSubmitting}>
@@ -132,6 +138,7 @@ export function BorrowActionModal({ isOpen, onClose, quote }: BorrowActionModalP
             variant="primary"
             size="md"
             onClick={handleExecuteBorrow}
+            disabled={!hasEnoughCollateral}
             isLoading={
               isSubmitting ||
               txStatus.step === 'signing_action' ||

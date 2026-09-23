@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getAddress, isAddress, keccak256, encodeAbiParameters, type Address } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { readAaveHistory } from '@/lib/attest/aaveHistory';
+import { CONTRACT_ADDRESSES } from '@/lib/web3/addresses';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -30,9 +31,9 @@ const TYPES = {
  */
 export async function GET(req: Request) {
   const key = process.env.ATTESTER_PRIVATE_KEY as `0x${string}` | undefined;
-  const importer = process.env.NEXT_PUBLIC_CREDIT_IMPORTER_ADDRESS as Address | undefined;
-  if (!key || !importer) {
-    return NextResponse.json({ error: 'Attester is not configured on this deployment.' }, { status: 503 });
+  const importer = CONTRACT_ADDRESSES.creditImporter as Address; // env override or the deployed default
+  if (!key) {
+    return NextResponse.json({ error: 'Attester is not configured on this deployment (set ATTESTER_PRIVATE_KEY).' }, { status: 503 });
   }
 
   const params = new URL(req.url).searchParams;

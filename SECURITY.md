@@ -64,5 +64,5 @@ Remaining findings, and why they're accepted:
 
 - The WETH collateral is a test token with a public faucet. The USDG market uses real Paxos testnet USDG; the second market uses a faucet test USDC.
 - The model's coefficients are fitted to Aave V3 (Arbitrum One) liquidation outcomes, with guardrails (`research/fit-weights`). Aave liquidations are a proxy for default, and attested Aave activity/volume is farmable, which is why their weights are capped.
-- The Stylus engine isn't Arbiscan-verified (the deployed WASM is post-processed with Binaryen rather than built with `cargo stylus`). It is a reproducible build instead: `scripts/verifyStylusBytecode.ts` checks the on-chain program's SHA-256 against a local build.
+- The Stylus engine isn't explorer-verified yet. It was deployed with `cargo stylus deploy` 0.10.9 from a pinned Docker build, and explorers don't support that version yet (Arbiscan tops out at 0.10.7). Anyone can confirm the deployed program matches this repository with `cargo stylus verify --deployment-tx 0xca764af479f3596a575a3ac0dbb446c815c6d28a399bbcb4079e9daedd828e69`.
 - The liquidation bonus for Prime borrowers is small (1.5%). On mainnet this may need tuning to keep liquidators interested.

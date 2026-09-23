@@ -234,7 +234,7 @@ cd frontend && npm install && npm run dev                          # dashboard +
 - **Sandbox personas are sample data.** They are labelled as such, and live mode shows only on-chain data.
 - **The demo imports use two fixed, public Aave wallets**, not the judge's own history.
 - **The model is fitted to Aave liquidations only.** Aave liquidations stand in for defaults, the sample covers one 180-day window on one venue, and the tier cutoffs are product choices. Refitting as ArbiScore builds its own repayment history needs no contract changes beyond the coefficients.
-- **The Stylus engine isn't Arbiscan-verified.** It is reproducibly built and hash-checked instead; see Live deployment.
+- **The Stylus engine isn't explorer-verified yet.** It was deployed with cargo-stylus 0.10.9, the first version that replays a pinned `wasm-opt` step. Arbiscan's Stylus verifier currently goes up to 0.10.7, and Blockscout's up to 0.6.1. Until they add it, the official `cargo stylus verify` check reproduces the deployed program exactly; see Live deployment.
 
 ## License
 

@@ -1,6 +1,6 @@
 /**
  * End-to-end smoke test against the live deployment (deployments.json).
- *   ATTEST_API=http://localhost:3000 npx hardhat run scripts/smokeTest.ts --network arbitrumSepolia
+ *   ATTEST_API=http://localhost:3000 DEMO_ACCESS_CODE=... npx hardhat run scripts/smokeTest.ts --network arbitrumSepolia
  *
  *  1. A fresh wallet scores 300 (Subprime) and is quoted 150% at the live Chainlink price.
  *  2. In each market with liquidity (USDG, test USDC): borrow + instant repay pays interest, earns NO credit.
@@ -14,7 +14,6 @@ import * as path from "path";
 
 const { contracts: C } = JSON.parse(fs.readFileSync(path.join(__dirname, "../deployments.json"), "utf8"));
 const scan = (h: string) => `https://sepolia.arbiscan.io/tx/${h}`;
-const AAVE_BORROWER = "0x699e74955b470C24f9a80ce60Ce0a8FFa747b897"; // public Aave V3 Arbitrum One borrower
 const ALICE = [[2000, 500, 1], [3500, 430, 1], [5000, 360, 1], [4000, 290, 1], [8000, 220, 1], [6000, 150, 1], [12000, 90, 1], [15000, 45, 1], [10000, 10, 0]];
 
 function check(cond: boolean, msg: string) {
@@ -90,7 +89,9 @@ async function main() {
   console.log("\n[3] Portable credit: import a real Aave V3 history via EIP-712 attestation");
   const api = process.env.ATTEST_API ?? "http://localhost:3000";
   const u2 = await newWallet();
-  const res = await fetch(`${api}/api/attest?address=${u2.address}&demoSource=${AAVE_BORROWER}`);
+  // Demo imports are gated: pass the judge access code (DEMO_ACCESS_CODE) or allowlist the wallet
+  const code = encodeURIComponent(process.env.DEMO_ACCESS_CODE ?? "");
+  const res = await fetch(`${api}/api/attest?address=${u2.address}&demo=good&code=${code}`);
   const body: any = await res.json();
   check(res.ok, `attester API signed ${body.attestation?.amountsUsd?.length} loans (${JSON.stringify(body.summary)})`);
   const importer = (await ethers.getContractAt("CreditImporter", C.CreditImporter)).connect(u2);

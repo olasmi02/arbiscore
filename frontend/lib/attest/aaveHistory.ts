@@ -8,9 +8,9 @@ import { LOAN_LIQUIDATED, LOAN_REPAID, MAX_HISTORY } from '@/lib/scoring/model';
  * specs for a CreditImporter attestation.
  *
  * Conservative by design:
- * - only closed borrows (fully repaid or liquidated) count; open Aave debt has no due date and is
- *   not treated as delinquent;
- * - repaid borrows held < 14 days are dropped, matching the model's seasoning rule, so quick
+ * - positions count once closed (repaid) or as soon as they are liquidated; open Aave debt has no
+ *   due date and is not treated as delinquent; every liquidation is recorded;
+ * - repaid positions held < 14 days are dropped, matching the model's seasoning rule, so quick
  *   borrow/repay loops on Aave can't be imported as credit either;
  * - specs are anchored on the real close time (borrowedDaysAgo = daysSinceClose + 30), so the
  *   model's recency decay uses the true date the outcome happened.
@@ -46,15 +46,18 @@ export interface AttestedHistory {
   summary: { borrows: number; repaid: number; liquidated: number; skippedShort: number; open: number };
 }
 
-interface OpenBorrow {
-  remaining: bigint;
-  amount: bigint;
-  ts: number;
+interface Position {
+  debt: bigint; // outstanding principal (reserve units)
+  peak: bigint; // largest principal during the position
+  openTs: number;
   liquidated: boolean;
 }
 
 export async function readAaveHistory(wallet: Address, nowSec: number): Promise<AttestedHistory> {
-  const client = createPublicClient({ chain: arbitrum, transport: http(process.env.ARBITRUM_ONE_RPC) });
+  const client = createPublicClient({
+    chain: arbitrum,
+    transport: http(process.env.ARBITRUM_ONE_RPC, { retryCount: 5, retryDelay: 400 }),
+  });
   const latest = await client.getBlockNumber();
 
   // Public RPCs may time out on full-history queries; bisect the block range until they succeed.
@@ -96,9 +99,12 @@ export async function readAaveHistory(wallet: Address, nowSec: number): Promise<
   // Block timestamps and reserve pricing (current Aave oracle price, USD with 8 decimals)
   const blocks = [...new Set(events.map((e) => e.log.blockNumber!))];
   const blockTs = new Map<bigint, number>();
-  await Promise.all(
-    blocks.map(async (b) => blockTs.set(b, Number((await client.getBlock({ blockNumber: b })).timestamp)))
-  );
+  // A few requests at a time: public RPCs rate-limit bursts from active wallets
+  for (let i = 0; i < blocks.length; i += 8) {
+    await Promise.all(
+      blocks.slice(i, i + 8).map(async (b) => blockTs.set(b, Number((await client.getBlock({ blockNumber: b })).timestamp)))
+    );
+  }
   const reserves = [...new Set(events.map((e) => e.reserve))];
   const pricing = new Map<Address, { price: bigint; decimals: number }>();
   await Promise.all(
@@ -115,41 +121,59 @@ export async function readAaveHistory(wallet: Address, nowSec: number): Promise<
     return (amount * p.price) / 10n ** BigInt(p.decimals) / 100_000_000n;
   };
 
-  // FIFO-match repayments and liquidations to borrows per reserve
-  const open = new Map<Address, OpenBorrow[]>();
+  // Aave debt is a running position per reserve, and repayments include accrued interest, so we
+  // track positions rather than matching individual borrows (FIFO matching let interest spill into
+  // later loans and silently dropped liquidations). A position opens on the first borrow and closes
+  // once its principal is (nearly) paid down; any liquidation marks it liquidated and is always kept.
+  const positions = new Map<Address, Position>();
   const closed: { amountUsd: bigint; openTs: number; closeTs: number; status: number }[] = [];
   let volumeUsd = 0n;
   let skippedShort = 0;
+  const close = (reserve: Address, pos: Position, ts: number) => {
+    positions.delete(reserve);
+    if (!pos.liquidated && (ts - pos.openTs) / DAY < MIN_HELD_DAYS) {
+      skippedShort++;
+      return;
+    }
+    closed.push({
+      amountUsd: toUsd(reserve, pos.peak),
+      openTs: pos.openTs,
+      closeTs: ts,
+      status: pos.liquidated ? LOAN_LIQUIDATED : LOAN_REPAID,
+    });
+  };
   for (const e of events) {
     const ts = blockTs.get(e.log.blockNumber!)!;
-    const queue = open.get(e.reserve) ?? [];
-    open.set(e.reserve, queue);
+    let pos = positions.get(e.reserve);
     if (e.kind === 'borrow') {
-      queue.push({ remaining: e.amount, amount: e.amount, ts, liquidated: false });
+      if (!pos) {
+        pos = { debt: 0n, peak: 0n, openTs: ts, liquidated: false };
+        positions.set(e.reserve, pos);
+      }
+      pos.debt += e.amount;
+      if (pos.debt > pos.peak) pos.peak = pos.debt;
       volumeUsd += toUsd(e.reserve, e.amount);
       continue;
     }
-    let left = e.amount;
-    while (left > 0n && queue.length) {
-      const b = queue[0];
-      const take = left < b.remaining ? left : b.remaining;
-      b.remaining -= take;
-      left -= take;
-      if (e.kind === 'liq') b.liquidated = true;
-      if (b.remaining === 0n) {
-        queue.shift();
-        const heldDays = (ts - b.ts) / DAY;
-        if (!b.liquidated && heldDays < MIN_HELD_DAYS) {
-          skippedShort++;
-          continue;
-        }
-        closed.push({
-          amountUsd: toUsd(e.reserve, b.amount),
-          openTs: b.ts,
-          closeTs: ts,
-          status: b.liquidated ? LOAN_LIQUIDATED : LOAN_REPAID,
-        });
+    if (!pos) {
+      // Nothing open to match (e.g. debt accrued via interest only): still record liquidations
+      if (e.kind === 'liq') {
+        closed.push({ amountUsd: toUsd(e.reserve, e.amount), openTs: ts, closeTs: ts, status: LOAN_LIQUIDATED });
       }
+      continue;
+    }
+    if (e.kind === 'liq') pos.liquidated = true;
+    pos.debt = e.amount >= pos.debt ? 0n : pos.debt - e.amount;
+    if (pos.debt * 100n <= pos.peak) close(e.reserve, pos, ts); // paid down to <= 1% of peak (interest dust)
+  }
+  // Positions still open: a liquidation already happened, so it counts; otherwise the loan is ongoing
+  const lastTs = blockTs.get(events[events.length - 1].log.blockNumber!)!;
+  let stillOpen = 0;
+  for (const [reserve, pos] of positions) {
+    if (pos.liquidated) {
+      closed.push({ amountUsd: toUsd(reserve, pos.peak), openTs: pos.openTs, closeTs: lastTs, status: LOAN_LIQUIDATED });
+    } else {
+      stillOpen++;
     }
   }
 
@@ -168,7 +192,7 @@ export async function readAaveHistory(wallet: Address, nowSec: number): Promise<
       repaid: recent.filter((l) => l.status === LOAN_REPAID).length,
       liquidated: recent.filter((l) => l.status === LOAN_LIQUIDATED).length,
       skippedShort,
-      open: [...open.values()].reduce((n, q) => n + q.length, 0),
+      open: stillOpen,
     },
   };
 }

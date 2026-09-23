@@ -16,7 +16,8 @@ ArbiScore is a testnet buildathon project and has **not been audited**. This doc
 
 **Trust assumptions:**
 - **Attester:** the attester reports Aave history honestly. It only counts closed loans held 14+ days, and anchors loan ages to the real close time.
-- **Demo sources:** demo-source imports are clearly labeled in the attestation's on-chain `source` field.
+- **Demo imports:** importing someone else's history is limited to two fixed public Aave borrowers (one clean, one liquidated), and only for allowlisted demo wallets or with the judges' access code; the server refuses any other source. Each import is labeled in the attestation's on-chain `source` field. Anyone can import their own history.
+- **Indexer correctness:** Aave debt is tracked as positions per asset (repayments include interest), and every liquidation is recorded, even one that can't be matched to an open position. An earlier borrow-by-borrow matcher let interest spill into later loans and could silently drop liquidations; this was found and fixed before submission.
 - **Engine owner:** can approve a market (`setVault`), which then reports loan outcomes; can point `setImporter` at a different importer; and can switch demo mode on, which would re-enable profile writes (never over open loans). A production deployment would put these behind a timelock or multisig.
 - **Roadmap:** replace the attester with storage proofs.
 

@@ -6,6 +6,28 @@ import { CONTRACT_ADDRESSES } from '@/lib/web3/addresses';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60; // indexing a real Aave history can take 10-30s
+
+/**
+ * Fixed public Aave V3 (Arbitrum One) borrowers for demo imports. Only these can be imported into
+ * a different wallet, and only for allowlisted wallets (DEMO_WALLETS) or with the judges' access
+ * code (DEMO_ACCESS_CODE). Anyone can always import their OWN history.
+ */
+const DEMO_SOURCES = {
+  good: '0x699e74955b470C24f9a80ce60Ce0a8FFa747b897', // ~24 repaid loans over ~20 months → Prime
+  bad: '0xAFb1DCD9692019c7f17788ceBaBc002cc6EfDCD9', // ~$34k borrowed, liquidated → Subprime
+} as const;
+type DemoKind = keyof typeof DEMO_SOURCES;
+
+function demoAllowed(user: string, code: string | null): boolean {
+  const wallets = (process.env.DEMO_WALLETS ?? '')
+    .split(',')
+    .map((w) => w.trim().toLowerCase())
+    .filter(Boolean);
+  if (wallets.includes(user.toLowerCase())) return true;
+  const expected = process.env.DEMO_ACCESS_CODE;
+  return Boolean(expected && code && code.trim().toUpperCase() === expected.trim().toUpperCase());
+}
 
 const ATTESTATION_TTL_SECONDS = 3600;
 
@@ -22,12 +44,11 @@ const TYPES = {
 } as const;
 
 /**
- * GET /api/attest?address=0x...[&demoSource=0x...]
+ * GET /api/attest?address=0x...[&demo=good|bad&code=...]
  *
  * Indexes the wallet's Aave V3 history on Arbitrum One and returns an EIP-712 attestation the
- * wallet can submit to CreditImporter on Arbitrum Sepolia. With ALLOW_DEMO_SOURCE=true (testnet
- * demos only), `demoSource` imports another public wallet's history; the attestation's `source`
- * records this, so it is visible on-chain.
+ * wallet can submit to CreditImporter on Arbitrum Sepolia. `demo` imports one of the fixed demo
+ * borrowers instead (gated, see above); the attestation's `source` records this on-chain.
  */
 export async function GET(req: Request) {
   const key = process.env.ATTESTER_PRIVATE_KEY as `0x${string}` | undefined;
@@ -38,15 +59,22 @@ export async function GET(req: Request) {
 
   const params = new URL(req.url).searchParams;
   const address = params.get('address');
-  const demoSource = params.get('demoSource');
+  const demo = params.get('demo');
   if (!address || !isAddress(address)) {
     return NextResponse.json({ error: 'Invalid address.' }, { status: 400 });
   }
-  if (demoSource && (process.env.ALLOW_DEMO_SOURCE !== 'true' || !isAddress(demoSource))) {
-    return NextResponse.json({ error: 'Demo source imports are disabled.' }, { status: 403 });
+  if (demo && !(demo in DEMO_SOURCES)) {
+    return NextResponse.json({ error: 'Unknown demo borrower.' }, { status: 400 });
+  }
+  if (demo && !demoAllowed(address, params.get('code'))) {
+    return NextResponse.json(
+      { error: 'Demo imports need a judge access code (or an allowlisted demo wallet). Anyone can import their own Aave history.' },
+      { status: 403 }
+    );
   }
 
   const user = getAddress(address);
+  const demoSource = demo ? DEMO_SOURCES[demo as DemoKind] : null;
   const historyOf = demoSource ? getAddress(demoSource) : user;
   const now = Math.floor(Date.now() / 1000);
 

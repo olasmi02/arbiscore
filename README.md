@@ -99,7 +99,7 @@ Stylus [deployment](https://sepolia.arbiscan.io/tx/0x381e5eac0e16ca482e40aa21613
 The live smoke test ([`scripts/smokeTest.ts`](contracts/lending_vault/scripts/smokeTest.ts)) checked the following on this deployment:
 1. **New wallets:** a fresh wallet scores 300 and is quoted 150% collateral at the live Chainlink price.
 2. **Live lending, no farming:** it [borrowed](https://sepolia.arbiscan.io/tx/0x372fe7a74b8ce25c09abbf7a6d670344bc6c201ef379f3dab40ca4ed74f5d25a) 5 test USDC and [repaid it with interest](https://sepolia.arbiscan.io/tx/0xe05db5a1ec5ea375bb47f7a452dfd6ab73d5dbf24557576417fd7eb4e23f1ed2) straight away. The score stayed at **484 → 484**, because an instant loop earns no credit.
-3. **Portable credit:** a real Aave V3 borrower's history (31 borrows over 617 days; 24 closed loans imported, 5 held under 14 days skipped) was attested, [imported via EIP-712](https://sepolia.arbiscan.io/tx/0x0f7e287164ed04bee067efe3cc01ee889382f5adb0e93fc3ac0bff79292af416) and scored **802 (Prime)** by the Stylus engine. Re-importing was rejected with `AlreadyHasHistory`.
+3. **Portable credit, both ways:** a real Aave V3 borrower with a clean record (31 borrows over ~20 months, 10 repaid positions) was attested, [imported via EIP-712](https://sepolia.arbiscan.io/tx/0x3bb7b7f54fad071f50bc798557ec855144213f81a31f9763a41a335a4b25a256) and scored **794 (Prime, 105%)**; a real borrower who was liquidated on about $34k of debt [imported](https://sepolia.arbiscan.io/tx/0x391d26de57ac7939a9c8c3ee57108f33eee1ef31cda5032427edf06886fb9b39) at **348 (Subprime, 150%)**. Re-importing was rejected with `AlreadyHasHistory`.
 4. **Parity:** the "Alice" persona scores exactly **812** on-chain, matching the TypeScript model.
 
 ## Architecture
@@ -127,7 +127,7 @@ The live smoke test ([`scripts/smokeTest.ts`](contracts/lending_vault/scripts/sm
 3. With Charlie selected, click **Simulate Repayment**. His $5,000 loan closes on time and the model re-scores him **649 → 760**.
 4. To see the anti-farming rule, borrow in the sandbox, repay immediately, and note that the score barely moves. Then **Fast-forward 15 days** and repay again.
 5. To go live, connect MetaMask or Rabby on Arbitrum Sepolia and turn the sandbox off:
-   - **Import credit:** click **Import my Aave history**, or use the labeled demo import of a public Aave borrower.
+   - **Import credit:** click **Import my Aave history** to bring your own Aave record. To see both outcomes, enter the **judge access code** from our submission and click **Demo: good borrower** (→ Prime) or **Demo: liquidated borrower** (→ Subprime). Each fresh wallet can import once.
    - **Pick a market** with the **Paxos USDG / Test USDC** switch. Test USDC has a one-click faucet and 1,000,000 of liquidity.
    - **Borrow:** click **Test WETH** for collateral, deposit it, and borrow. Repay with interest from the Positions table.
    - **Lend:** supply the market's stablecoin to earn interest (test USDC from the header button; USDG from the Paxos faucet).
@@ -147,7 +147,7 @@ cd frontend && npm install && npm run dev                          # dashboard +
 
 **Why `build_wasm.mjs`:** recent Rust toolchains link a standard library that emits bulk-memory opcodes, which the Stylus validator rejects. The script uses Binaryen to lower them, and the result compresses to 21.5 KB (limit 24 KB).
 
-**Environment variables for `/api/attest`:** `ATTESTER_PRIVATE_KEY` (server-only), `NEXT_PUBLIC_CREDIT_IMPORTER_ADDRESS`, and `ALLOW_DEMO_SOURCE=true` for the labeled demo import.
+**Environment variables for `/api/attest`** (server-only): `ATTESTER_PRIVATE_KEY` signs attestations; `DEMO_ACCESS_CODE` and/or `DEMO_WALLETS` (comma-separated) unlock the two fixed demo imports. Without them, only own-history imports work.
 
 ## Limitations
 

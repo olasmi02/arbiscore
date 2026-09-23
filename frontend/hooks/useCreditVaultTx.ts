@@ -170,13 +170,14 @@ export function useCreditVaultTx(onSuccessCallback?: () => void) {
     );
 
   /** Portable credit: fetch a signed attestation of Aave V3 history and import it on-chain. */
-  const importAaveCredit = (demoSource?: string) =>
+  const importAaveCredit = (demo?: 'good' | 'bad', code?: string) =>
     run(
       { sign: 'Import Aave Credit History', pending: 'Verifying attestation and scoring in Stylus...', done: 'Aave history imported and scored!', failed: 'Import Failed' },
       async () => {
         setTxStatus({ step: 'signing_action', actionTitle: 'Indexing Aave V3 history on Arbitrum One...' });
         const qs = new URLSearchParams({ address: address! });
-        if (demoSource) qs.set('demoSource', demoSource);
+        if (demo) qs.set('demo', demo);
+        if (code) qs.set('code', code);
         const res = await fetch(`/api/attest?${qs}`);
         const body = await res.json();
         if (!res.ok) throw new Error(body.error ?? 'Attestation failed');

@@ -1,5 +1,6 @@
 import 'server-only';
 import { createPublicClient, http, parseAbiItem, type Address, type Log } from 'viem';
+import { unstable_cache } from 'next/cache';
 import { arbitrum } from 'viem/chains';
 import { LOAN_LIQUIDATED, LOAN_REPAID, MAX_HISTORY } from '@/lib/scoring/model';
 import { buildPositions } from '@/lib/attest/positions';
@@ -48,13 +49,20 @@ export interface AttestedHistory {
 }
 
 
-export async function readAaveHistory(wallet: Address, nowSec: number): Promise<AttestedHistory> {
+/** A wallet's raw Aave activity: JSON-safe, so it can live in Next's data cache. */
+interface AaveActivity {
+  events: { kind: 'borrow' | 'repay' | 'liq'; reserve: Address; amount: string; ts: number }[];
+  pricing: Record<string, { price: string; decimals: number }>;
+  borrows: number;
+}
+
+async function fetchAaveActivity(wallet: Address): Promise<AaveActivity> {
   const client = createPublicClient({
     chain: arbitrum,
     // Needs full-range eth_getLogs: the default public endpoint (arb1.arbitrum.io) allows it, but
     // many free tiers (e.g. Alchemy: 10 blocks) don't. Concurrent calls are sent as JSON-RPC batches
     // (fewer HTTP requests against public rate limits); retries back off exponentially.
-    transport: http(process.env.ARBITRUM_ONE_RPC, { batch: { batchSize: 25 }, retryCount: 5, retryDelay: 750 }),
+    transport: http(process.env.ARBITRUM_ONE_RPC, { batch: { batchSize: 25 }, retryCount: 4, retryDelay: 750 }),
   });
   const latest = await client.getBlockNumber();
 
@@ -68,18 +76,21 @@ export async function readAaveHistory(wallet: Address, nowSec: number): Promise<
       return [...(await logs(query, from, mid, depth + 1)), ...(await logs(query, mid + 1n, to, depth + 1))];
     }
   }
-  const borrows = await logs(
-    (fromBlock, toBlock) => client.getLogs({ address: POOL, event: BORROW, args: { onBehalfOf: wallet }, fromBlock, toBlock }),
-    POOL_DEPLOY_BLOCK, latest
-  );
-  const repays = await logs(
-    (fromBlock, toBlock) => client.getLogs({ address: POOL, event: REPAY, args: { user: wallet }, fromBlock, toBlock }),
-    POOL_DEPLOY_BLOCK, latest
-  );
-  const liquidations = await logs(
-    (fromBlock, toBlock) => client.getLogs({ address: POOL, event: LIQUIDATION, args: { user: wallet }, fromBlock, toBlock }),
-    POOL_DEPLOY_BLOCK, latest
-  );
+  // Issued together so the transport sends all three in one HTTP request
+  const [borrows, repays, liquidations] = await Promise.all([
+    logs(
+      (fromBlock, toBlock) => client.getLogs({ address: POOL, event: BORROW, args: { onBehalfOf: wallet }, fromBlock, toBlock }),
+      POOL_DEPLOY_BLOCK, latest
+    ),
+    logs(
+      (fromBlock, toBlock) => client.getLogs({ address: POOL, event: REPAY, args: { user: wallet }, fromBlock, toBlock }),
+      POOL_DEPLOY_BLOCK, latest
+    ),
+    logs(
+      (fromBlock, toBlock) => client.getLogs({ address: POOL, event: LIQUIDATION, args: { user: wallet }, fromBlock, toBlock }),
+      POOL_DEPLOY_BLOCK, latest
+    ),
+  ]);
 
   type Ev = { kind: 'borrow' | 'repay' | 'liq'; reserve: Address; amount: bigint; log: Log };
   const events: Ev[] = [
@@ -87,61 +98,76 @@ export async function readAaveHistory(wallet: Address, nowSec: number): Promise<
     ...repays.map((l) => ({ kind: 'repay' as const, reserve: l.args.reserve!, amount: l.args.amount!, log: l })),
     ...liquidations.map((l) => ({ kind: 'liq' as const, reserve: l.args.debtAsset!, amount: l.args.debtToCover!, log: l })),
   ].sort((a, b) => Number(a.log.blockNumber! - b.log.blockNumber!) || a.log.logIndex! - b.log.logIndex!);
+  if (events.length === 0) return { events: [], pricing: {}, borrows: 0 };
 
-  const empty: AttestedHistory = {
-    ageDays: 0, txCount: 0, volumeUsd: 0n, amountsUsd: [], borrowedDaysAgo: [], statuses: [], daysLate: [],
-    summary: { borrows: 0, repaid: 0, liquidated: 0, skippedShort: 0, open: 0 },
-  };
-  if (events.length === 0) return empty;
-
-  // Block timestamps (a log's own `blockTimestamp` is used when the node fills it in; arb1 returns 0),
-  // fetched concurrently so the transport batches them. Then reserve pricing (current Aave oracle
-  // price, USD with 8 decimals).
+  // Block timestamps (a log's own `blockTimestamp` is used when the node fills it in; arb1 returns 0)
+  // and reserve pricing (current Aave oracle price, USD with 8 decimals), fetched concurrently so the
+  // transport batches them.
   const blockTs = new Map<bigint, number>();
   for (const e of events) {
     const ts = Number((e.log as { blockTimestamp?: bigint | string | number }).blockTimestamp ?? 0);
     if (ts > 0) blockTs.set(e.log.blockNumber!, ts);
   }
   const missing = [...new Set(events.map((e) => e.log.blockNumber!))].filter((b) => !blockTs.has(b));
-  await Promise.all(
-    missing.map(async (b) => blockTs.set(b, Number((await client.getBlock({ blockNumber: b })).timestamp)))
-  );
   const reserves = [...new Set(events.map((e) => e.reserve))];
-  const pricing = new Map<Address, { price: bigint; decimals: number }>();
-  await Promise.all(
-    reserves.map(async (r) => {
+  const pricing: AaveActivity['pricing'] = {};
+  await Promise.all([
+    ...missing.map(async (b) => blockTs.set(b, Number((await client.getBlock({ blockNumber: b })).timestamp))),
+    ...reserves.map(async (r) => {
       const [price, decimals] = await Promise.all([
         client.readContract({ address: AAVE_ORACLE, abi: PRICE_ABI, functionName: 'getAssetPrice', args: [r] }),
         client.readContract({ address: r, abi: DECIMALS_ABI, functionName: 'decimals' }),
       ]);
-      pricing.set(r, { price, decimals });
-    })
-  );
-  const toUsd = (reserve: Address, amount: bigint) => {
-    const p = pricing.get(reserve)!;
-    return (amount * p.price) / 10n ** BigInt(p.decimals) / 100_000_000n;
-  };
+      pricing[r] = { price: price.toString(), decimals };
+    }),
+  ]);
 
+  return {
+    events: events.map((e) => ({ kind: e.kind, reserve: e.reserve, amount: e.amount.toString(), ts: blockTs.get(e.log.blockNumber!)! })),
+    pricing,
+    borrows: borrows.length,
+  };
+}
+
+/**
+ * Each wallet's activity is cached for an hour in Next's data cache (shared across serverless
+ * invocations on Vercel), so repeat imports, such as the demo borrowers, skip the public RPC.
+ * Attestations stay conservative: at most an hour of new Aave activity is missing.
+ */
+const cachedAaveActivity = unstable_cache(fetchAaveActivity, ['aave-activity-v1'], { revalidate: 3600 });
+
+export async function readAaveHistory(wallet: Address, nowSec: number): Promise<AttestedHistory> {
+  const activity = await cachedAaveActivity(wallet);
+  const empty: AttestedHistory = {
+    ageDays: 0, txCount: 0, volumeUsd: 0n, amountsUsd: [], borrowedDaysAgo: [], statuses: [], daysLate: [],
+    summary: { borrows: 0, repaid: 0, liquidated: 0, skippedShort: 0, open: 0 },
+  };
+  if (activity.events.length === 0) return empty;
+
+  const toUsd = (reserve: string, amount: bigint) => {
+    const p = activity.pricing[reserve];
+    return (amount * BigInt(p.price)) / 10n ** BigInt(p.decimals) / 100_000_000n;
+  };
   const summary = buildPositions(
-    events.map((e) => ({ kind: e.kind, reserve: e.reserve, amount: e.amount, ts: blockTs.get(e.log.blockNumber!)! })),
-    (reserve, amount) => toUsd(reserve as Address, amount),
+    activity.events.map((e) => ({ kind: e.kind, reserve: e.reserve, amount: BigInt(e.amount), ts: e.ts })),
+    toUsd,
     MIN_HELD_DAYS
   );
   const { closed, volumeUsd, skippedShort } = summary;
   const stillOpen = summary.open.length;
 
   const recent = closed.slice(-MAX_HISTORY);
-  const firstTs = blockTs.get(events[0].log.blockNumber!)!;
+  const firstTs = activity.events[0].ts;
   return {
     ageDays: Math.floor((nowSec - firstTs) / DAY),
-    txCount: events.length,
+    txCount: activity.events.length,
     volumeUsd,
     amountsUsd: recent.map((l) => (l.amountUsd > 0n ? l.amountUsd : 1n)),
     borrowedDaysAgo: recent.map((l) => Math.floor((nowSec - l.closeTs) / DAY) + TERM_DAYS),
     statuses: recent.map((l) => l.status),
     daysLate: recent.map(() => 0),
     summary: {
-      borrows: borrows.length,
+      borrows: activity.borrows,
       repaid: recent.filter((l) => l.status === LOAN_REPAID).length,
       liquidated: recent.filter((l) => l.status === LOAN_LIQUIDATED).length,
       skippedShort,

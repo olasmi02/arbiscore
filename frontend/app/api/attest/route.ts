@@ -30,6 +30,9 @@ function demoAllowed(user: string, code: string | null): boolean {
 }
 
 const ATTESTATION_TTL_SECONDS = 3600;
+// Stay under maxDuration so a stalled public RPC gets a clear error, not a platform timeout page
+const HISTORY_BUDGET_MS = 50_000;
+const HISTORY_TIMEOUT = 'history-timeout';
 
 const TYPES = {
   CreditAttestation: [
@@ -80,9 +83,19 @@ export async function GET(req: Request) {
 
   let history;
   try {
-    history = await readAaveHistory(historyOf, now);
+    history = await Promise.race([
+      readAaveHistory(historyOf, now),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error(HISTORY_TIMEOUT)), HISTORY_BUDGET_MS)),
+    ]);
   } catch (e) {
-    return NextResponse.json({ error: `Could not read Aave history: ${(e as Error).message}` }, { status: 502 });
+    const message = (e as Error).message;
+    if (message === HISTORY_TIMEOUT) {
+      return NextResponse.json(
+        { error: 'The public Arbitrum One RPC is busy right now. Please try the import again in a minute.' },
+        { status: 503 }
+      );
+    }
+    return NextResponse.json({ error: `Could not read Aave history: ${message}` }, { status: 502 });
   }
   if (history.amountsUsd.length === 0) {
     return NextResponse.json(

@@ -44,15 +44,16 @@ const TX_HALF: u128 = 50;
 const VOL_HALF: u128 = 5_000;
 const UTIL_FLOOR: u128 = 1_000;
 
-// Logistic coefficients: positive terms
-const C_QUALITY: u128 = 3_200_000;
-const C_DEPTH: u128 = 1_300_000;
-const C_AGE: u128 = 900_000;
-const C_ACTIVITY: u128 = 350_000;
-const C_VOLUME: u128 = 350_000;
+// Logistic coefficients (Fitted to Aave V3 Arbitrum One outcomes with product guardrails: research/fit-weights)
+// Positive terms
+const C_QUALITY: u128 = 1_900_000;
+const C_DEPTH: u128 = 2_500_000;
+const C_AGE: u128 = 700_000;
+const C_ACTIVITY: u128 = 600_000;
+const C_VOLUME: u128 = 600_000;
 // Logistic coefficients: negative terms (stored as magnitudes)
-const C_INTERCEPT_NEG: u128 = 2_600_000;
-const C_LIQUIDATION_NEG: u128 = 2_600_000;
+const C_INTERCEPT_NEG: u128 = 1_600_000;
+const C_LIQUIDATION_NEG: u128 = 3_500_000;
 const C_UTILIZATION_NEG: u128 = 400_000;
 
 /// Risk tier definitions.
@@ -148,6 +149,11 @@ pub struct Accumulator {
 
 impl Accumulator {
     pub fn add(&mut self, loan: &LoanEntry, now: u64) {
+        self.add_with_half_life(loan, now, HALF_LIFE_DAYS);
+    }
+
+    /// Same as `add`, with a configurable recency half-life (used by the benchmark ensemble).
+    pub fn add_with_half_life(&mut self, loan: &LoanEntry, now: u64, half_life_days: u128) {
         let amount = loan.amount_usd as u128;
         let ref_ts = if loan.status == LOAN_OPEN {
             if now <= loan.due_ts {
@@ -164,7 +170,7 @@ impl Accumulator {
         } else {
             0
         };
-        let recency = exp2_neg(age_fp / HALF_LIFE_DAYS);
+        let recency = exp2_neg(age_fp / half_life_days);
         let mut size = isqrt(amount);
         if size == 0 {
             size = 1;
@@ -248,6 +254,32 @@ pub fn score_from_features(f: &Features) -> u16 {
     let p = probability(f);
     let score = MIN_SCORE as u128 + ((MAX_SCORE - MIN_SCORE) as u128 * p) / S;
     score.min(MAX_SCORE as u128) as u16
+}
+
+/// Benchmark "richer model": averages the score over `horizons` recency half-lives
+/// (60, 90, 120, ... days). Same inputs and storage reads, `horizons` times the arithmetic.
+pub fn score_ensemble(
+    first_activity_ts: u64,
+    total_txs: u64,
+    volume_usd: u64,
+    loans: &[LoanEntry],
+    now: u64,
+    horizons: u32,
+) -> u16 {
+    if horizons == 0 {
+        return MIN_SCORE;
+    }
+    let start = loans.len().saturating_sub(MAX_HISTORY);
+    let mut sum: u32 = 0;
+    for h in 0..horizons {
+        let half_life = 60 + 30 * h as u128;
+        let mut acc = Accumulator::default();
+        for loan in &loans[start..] {
+            acc.add_with_half_life(loan, now, half_life);
+        }
+        sum += score_from_features(&acc.finish(first_activity_ts, total_txs, volume_usd, now)) as u32;
+    }
+    (sum / horizons) as u16
 }
 
 pub fn compute_score(first_activity_ts: u64, total_txs: u64, volume_usd: u64, loans: &[LoanEntry], now: u64) -> u16 {

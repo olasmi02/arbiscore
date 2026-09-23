@@ -2,6 +2,7 @@ import 'server-only';
 import { createPublicClient, http, parseAbiItem, type Address, type Log } from 'viem';
 import { arbitrum } from 'viem/chains';
 import { LOAN_LIQUIDATED, LOAN_REPAID, MAX_HISTORY } from '@/lib/scoring/model';
+import { buildPositions } from '@/lib/attest/positions';
 
 /**
  * Reads a wallet's Aave V3 history on Arbitrum One and converts closed loans into ArbiScore loan
@@ -46,12 +47,6 @@ export interface AttestedHistory {
   summary: { borrows: number; repaid: number; liquidated: number; skippedShort: number; open: number };
 }
 
-interface Position {
-  debt: bigint; // outstanding principal (reserve units)
-  peak: bigint; // largest principal during the position
-  openTs: number;
-  liquidated: boolean;
-}
 
 export async function readAaveHistory(wallet: Address, nowSec: number): Promise<AttestedHistory> {
   const client = createPublicClient({
@@ -121,63 +116,15 @@ export async function readAaveHistory(wallet: Address, nowSec: number): Promise<
     return (amount * p.price) / 10n ** BigInt(p.decimals) / 100_000_000n;
   };
 
-  // Aave debt is a running position per reserve, and repayments include accrued interest, so we
-  // track positions rather than matching individual borrows (FIFO matching let interest spill into
-  // later loans and silently dropped liquidations). A position opens on the first borrow and closes
-  // once its principal is (nearly) paid down; any liquidation marks it liquidated and is always kept.
-  const positions = new Map<Address, Position>();
-  const closed: { amountUsd: bigint; openTs: number; closeTs: number; status: number }[] = [];
-  let volumeUsd = 0n;
-  let skippedShort = 0;
-  const close = (reserve: Address, pos: Position, ts: number) => {
-    positions.delete(reserve);
-    if (!pos.liquidated && (ts - pos.openTs) / DAY < MIN_HELD_DAYS) {
-      skippedShort++;
-      return;
-    }
-    closed.push({
-      amountUsd: toUsd(reserve, pos.peak),
-      openTs: pos.openTs,
-      closeTs: ts,
-      status: pos.liquidated ? LOAN_LIQUIDATED : LOAN_REPAID,
-    });
-  };
-  for (const e of events) {
-    const ts = blockTs.get(e.log.blockNumber!)!;
-    let pos = positions.get(e.reserve);
-    if (e.kind === 'borrow') {
-      if (!pos) {
-        pos = { debt: 0n, peak: 0n, openTs: ts, liquidated: false };
-        positions.set(e.reserve, pos);
-      }
-      pos.debt += e.amount;
-      if (pos.debt > pos.peak) pos.peak = pos.debt;
-      volumeUsd += toUsd(e.reserve, e.amount);
-      continue;
-    }
-    if (!pos) {
-      // Nothing open to match (e.g. debt accrued via interest only): still record liquidations
-      if (e.kind === 'liq') {
-        closed.push({ amountUsd: toUsd(e.reserve, e.amount), openTs: ts, closeTs: ts, status: LOAN_LIQUIDATED });
-      }
-      continue;
-    }
-    if (e.kind === 'liq') pos.liquidated = true;
-    pos.debt = e.amount >= pos.debt ? 0n : pos.debt - e.amount;
-    if (pos.debt * 100n <= pos.peak) close(e.reserve, pos, ts); // paid down to <= 1% of peak (interest dust)
-  }
-  // Positions still open: a liquidation already happened, so it counts; otherwise the loan is ongoing
-  const lastTs = blockTs.get(events[events.length - 1].log.blockNumber!)!;
-  let stillOpen = 0;
-  for (const [reserve, pos] of positions) {
-    if (pos.liquidated) {
-      closed.push({ amountUsd: toUsd(reserve, pos.peak), openTs: pos.openTs, closeTs: lastTs, status: LOAN_LIQUIDATED });
-    } else {
-      stillOpen++;
-    }
-  }
+  const summary = buildPositions(
+    events.map((e) => ({ kind: e.kind, reserve: e.reserve, amount: e.amount, ts: blockTs.get(e.log.blockNumber!)! })),
+    (reserve, amount) => toUsd(reserve as Address, amount),
+    MIN_HELD_DAYS
+  );
+  const { closed, volumeUsd, skippedShort } = summary;
+  const stillOpen = summary.open.length;
 
-  const recent = closed.sort((a, b) => a.closeTs - b.closeTs).slice(-MAX_HISTORY);
+  const recent = closed.slice(-MAX_HISTORY);
   const firstTs = blockTs.get(events[0].log.blockNumber!)!;
   return {
     ageDays: Math.floor((nowSec - firstTs) / DAY),

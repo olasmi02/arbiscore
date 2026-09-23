@@ -52,9 +52,9 @@ export const PERSONA_PROFILES: Record<'alice' | 'bob' | 'charlie', PersonaProfil
   },
   // One small on-time repayment, now carrying a much larger open loan
   charlie: {
-    ageDays: 120,
-    totalTransactions: 55,
-    totalVolumeUSD: 5_500,
-    loans: [loan(800, 80, LOAN_REPAID), loan(5_000, 15, LOAN_OPEN)],
+    ageDays: 60,
+    totalTransactions: 25,
+    totalVolumeUSD: 3_000,
+    loans: [loan(800, 50, LOAN_REPAID), loan(5_000, 15, LOAN_OPEN)],
   },
 };

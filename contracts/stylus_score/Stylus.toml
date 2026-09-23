@@ -1,0 +1,16 @@
+[workspace]
+
+[workspace.networks]
+
+[contract]
+
+# Pinned Binaryen post-build step, replayed identically by `cargo stylus verify` (cargo-stylus >= 0.10.9).
+# Rust's prebuilt std emits bulk-memory ops (memory.copy/fill) that Stylus activation rejects;
+# this lowers them to plain loops and keeps the program under the 24 KB compressed limit.
+[wasm-opt]
+version = "132"
+flags = [
+  "--enable-bulk-memory", "--enable-sign-ext", "--enable-mutable-globals",
+  "--llvm-memory-copy-fill-lowering", "-Os", "--converge", "--strip-debug", "--strip-producers",
+  "--disable-bulk-memory",
+]

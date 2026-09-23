@@ -1,10 +1,12 @@
 /**
- * Builds a Stylus-activatable WASM without cargo-stylus.
+ * Local build of the optimized WASM with your default toolchain, for inspection and for the
+ * float-opcode test in tests/model_tests.rs. Deployments use the reproducible cargo-stylus build
+ * (rust-toolchain.toml + Stylus.toml), which applies the same wasm-opt recipe inside Docker.
  *
  * Recent Rust toolchains link a prebuilt std that emits bulk-memory ops (memory.copy/fill),
  * which the Stylus validator rejects ("zero byte expected"). Binaryen lowers them to loops.
  *
- * Output: target/arbiscore_engine.stylus.wasm  (consumed by lending_vault/scripts/deployStylus.ts)
+ * Output: target/arbiscore_engine.stylus.wasm
  */
 import { execSync } from 'node:child_process';
 import path from 'node:path';

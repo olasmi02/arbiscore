@@ -4,6 +4,7 @@ import { useAccount, usePublicClient, useWalletClient } from 'wagmi';
 import { parseEther, parseUnits, maxUint256, type Hash } from 'viem';
 import { CONTRACT_ADDRESSES } from '@/lib/web3/addresses';
 import { ARBI_CREDIT_VAULT_ABI, CREDIT_IMPORTER_ABI, ERC20_ABI } from '@/lib/web3/abis';
+import { describeTxError, KNOWN_ERRORS } from '@/lib/web3/txErrors';
 import { useTxContext } from '@/lib/context/TxContext';
 import { useMarket } from '@/lib/context/MarketContext';
 
@@ -62,13 +63,26 @@ export function useCreditVaultTx(onSuccessCallback?: () => void) {
       setTxStatus({
         step: 'failed',
         actionTitle: titles.failed,
-        errorMessage: err?.shortMessage || err?.message || 'Transaction rejected',
+        errorMessage: describeTxError(err),
       });
     }
   };
 
+  /**
+   * Simulates first so a doomed transaction fails before the wallet prompt, with the contract's
+   * error decoded (the error ABI covers reverts bubbling up from the engine, oracle and OZ bases).
+   */
+  const send = async (req: { address: `0x${string}`; abi: readonly unknown[]; functionName: string; args: readonly unknown[] }) => {
+    const { request } = await publicClient!.simulateContract({
+      ...req,
+      abi: [...req.abi, ...KNOWN_ERRORS],
+      account: address!,
+    } as any);
+    return walletClient!.writeContract(request as any);
+  };
+
   const vaultWrite = (functionName: string, args: readonly unknown[]) =>
-    walletClient!.writeContract({ address: market.vault, abi: ARBI_CREDIT_VAULT_ABI, functionName, args } as any);
+    send({ address: market.vault, abi: ARBI_CREDIT_VAULT_ABI, functionName, args });
 
   // --- Collateral ---
   const depositCollateral = (amountETH: string) => {
@@ -148,7 +162,7 @@ export function useCreditVaultTx(onSuccessCallback?: () => void) {
     run(
       { sign: 'Claim 2 Test WETH', pending: 'Minting test WETH collateral...', done: 'Claimed 2 test WETH!', failed: 'Faucet Failed' },
       () =>
-        walletClient!.writeContract({
+        send({
           address: CONTRACT_ADDRESSES.weth,
           abi: ERC20_ABI,
           functionName: 'faucet',
@@ -161,7 +175,7 @@ export function useCreditVaultTx(onSuccessCallback?: () => void) {
     run(
       { sign: `Claim 1,000 test ${sym}`, pending: `Minting test ${sym}...`, done: `Claimed 1,000 test ${sym}!`, failed: 'Faucet Failed' },
       () =>
-        walletClient!.writeContract({
+        send({
           address: market.asset,
           abi: ERC20_ABI,
           functionName: 'faucet',
@@ -183,7 +197,7 @@ export function useCreditVaultTx(onSuccessCallback?: () => void) {
         if (!res.ok) throw new Error(body.error ?? 'Attestation failed');
         const a = body.attestation;
         setTxStatus({ step: 'signing_action', actionTitle: `Import ${a.amountsUsd.length} attested Aave loans` });
-        return walletClient!.writeContract({
+        return send({
           address: CONTRACT_ADDRESSES.creditImporter,
           abi: CREDIT_IMPORTER_ABI,
           functionName: 'importCredit',

@@ -35,13 +35,14 @@ library ArbiScoreModel {
     uint256 private constant VOL_HALF = 5_000;
     uint256 private constant UTIL_FLOOR = 1_000;
 
-    uint256 private constant C_QUALITY = 3_200_000;
-    uint256 private constant C_DEPTH = 1_300_000;
-    uint256 private constant C_AGE = 900_000;
-    uint256 private constant C_ACTIVITY = 350_000;
-    uint256 private constant C_VOLUME = 350_000;
-    uint256 private constant C_INTERCEPT_NEG = 2_600_000;
-    uint256 private constant C_LIQUIDATION_NEG = 2_600_000;
+    // Logistic coefficients, fitted to Aave V3 Arbitrum One outcomes with product guardrails (research/fit-weights)
+    uint256 private constant C_QUALITY = 1_900_000;
+    uint256 private constant C_DEPTH = 2_500_000;
+    uint256 private constant C_AGE = 700_000;
+    uint256 private constant C_ACTIVITY = 600_000;
+    uint256 private constant C_VOLUME = 600_000;
+    uint256 private constant C_INTERCEPT_NEG = 1_600_000;
+    uint256 private constant C_LIQUIDATION_NEG = 3_500_000;
     uint256 private constant C_UTILIZATION_NEG = 400_000;
 
     struct Loan {
@@ -104,6 +105,11 @@ library ArbiScoreModel {
     }
 
     function add(Acc memory acc, Loan memory loan, uint256 nowTs) internal pure {
+        addWithHalfLife(acc, loan, nowTs, HALF_LIFE_DAYS);
+    }
+
+    /// Same as `add`, with a configurable recency half-life (used by the benchmark ensemble).
+    function addWithHalfLife(Acc memory acc, Loan memory loan, uint256 nowTs, uint256 halfLifeDays) internal pure {
         unchecked {
             uint256 amount = loan.amountUsd;
             uint256 refTs;
@@ -118,7 +124,7 @@ library ArbiScoreModel {
             }
 
             uint256 ageFp = nowTs > refTs ? ((nowTs - refTs) * S) / DAY : 0;
-            uint256 recency = exp2Neg(ageFp / HALF_LIFE_DAYS);
+            uint256 recency = exp2Neg(ageFp / halfLifeDays);
             uint256 size = isqrt(amount);
             if (size == 0) size = 1;
             uint256 w = recency * size;
@@ -178,6 +184,28 @@ library ArbiScoreModel {
             add(acc, loans[i], nowTs);
         }
         return finish(acc, firstActivityTs, totalTxs, volumeUsd, nowTs);
+    }
+
+    /// Benchmark "richer model": averages the score over `horizons` recency half-lives.
+    function scoreEnsemble(
+        uint256 firstActivityTs,
+        uint256 totalTxs,
+        uint256 volumeUsd,
+        Loan[] memory loans,
+        uint256 nowTs,
+        uint256 horizons
+    ) internal pure returns (uint16) {
+        if (horizons == 0) return MIN_SCORE;
+        uint256 start = loans.length > MAX_HISTORY ? loans.length - MAX_HISTORY : 0;
+        uint256 sum;
+        for (uint256 h = 0; h < horizons; ++h) {
+            Acc memory acc;
+            for (uint256 i = start; i < loans.length; ++i) {
+                addWithHalfLife(acc, loans[i], nowTs, 60 + 30 * h);
+            }
+            sum += finish(acc, firstActivityTs, totalTxs, volumeUsd, nowTs);
+        }
+        return uint16(sum / horizons);
     }
 
     function specToLoan(uint256 amountUsd, uint256 borrowedDaysAgo, uint8 status, uint256 daysLate, uint256 nowTs)

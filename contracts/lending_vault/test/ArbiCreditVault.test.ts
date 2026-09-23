@@ -48,7 +48,7 @@ describe("ArbiCreditVault: two-sided USDG credit market", function () {
       [3000, 190, REPAID, 12], [5000, 160, LIQUIDATED], [2000, 130, REPAID],
       [4000, 95, LIQUIDATED], [1500, 60, REPAID, 5], [2500, 12, OPEN],
     ]);
-    await setProfile(moderate.address, 100, 25, 2000, [[600, 70, REPAID]]);
+    await setProfile(moderate.address, 45, 10, 800, [[600, 30, REPAID]]); // ~665: Standard
 
     const v = await vault.getAddress();
     for (const s of [lender, prime, subprime, moderate, liquidator]) {

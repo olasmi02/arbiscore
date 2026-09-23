@@ -1,6 +1,6 @@
 # Security notes
 
-ArbiScore is a testnet buildathon project and has **not been audited**. This document lists the threat model, the protections in the code, and the trade-offs we accepted.
+ArbiScore is a testnet buildathon project and has **not been audited**. This document lists the threat model, the protections in the code, and the trade-offs accepted.
 
 ## Credit-model integrity
 
@@ -47,7 +47,7 @@ ArbiScore is a testnet buildathon project and has **not been audited**. This doc
 
 ## Slither
 
-Run with `python -m slither . --filter-paths "node_modules|mocks"` in `contracts/lending_vault`. We fixed:
+Run with `python -m slither . --filter-paths "node_modules|mocks"` in `contracts/lending_vault`. Fixed:
 - divide-before-multiply precision loss in `isLiquidatable`
 - state written after the external call in `borrow` (reordered)
 - missing zero-address checks in `CreditImporter`
@@ -63,6 +63,6 @@ Remaining findings, and why they're accepted:
 ## Known limitations
 
 - The WETH collateral is a test token with a public faucet. The USDG market uses real Paxos testnet USDG; the second market uses a faucet test USDC.
-- The model's coefficients are hand-calibrated, not fitted to default data.
-- The Stylus engine isn't Arbiscan-verified (we deploy a Binaryen-post-processed WASM rather than using `cargo stylus`). It is a reproducible build instead: `scripts/verifyStylusBytecode.ts` checks the on-chain program's SHA-256 against a local build.
+- The model's coefficients are fitted to Aave V3 (Arbitrum One) liquidation outcomes, with guardrails (`research/fit-weights`). Aave liquidations are a proxy for default, and attested Aave activity/volume is farmable, which is why their weights are capped.
+- The Stylus engine isn't Arbiscan-verified (the deployed WASM is post-processed with Binaryen rather than built with `cargo stylus`). It is a reproducible build instead: `scripts/verifyStylusBytecode.ts` checks the on-chain program's SHA-256 against a local build.
 - The liquidation bonus for Prime borrowers is small (1.5%). On mainnet this may need tuning to keep liquidators interested.

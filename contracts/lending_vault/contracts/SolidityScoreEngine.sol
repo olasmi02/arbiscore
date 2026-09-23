@@ -37,7 +37,7 @@ contract SolidityScoreEngine is IArbiScoreEngine {
     address public override owner;
     mapping(address => bool) public override isVault;
     bool public override demoMode;
-    mapping(address => Profile) private _profiles;
+    mapping(address => Profile) internal _profiles;
     address public override importer;
 
     event ScoreCalculated(address indexed user, uint16 score, uint8 tier, uint16 collateralRatioBps);

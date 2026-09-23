@@ -51,7 +51,7 @@ describe("ArbiScore v2 model & engine", function () {
       ).to.be.revertedWithCustomError(engine, "DemoModeDisabled");
       await engine.setDemoMode(true);
       await engine.connect(alice).setMockProfile(alice.address, 100, 25, 2000, [600], [70], [1], [0]);
-      expect(await engine.calculateScore(alice.address)).to.equal(655);
+      expect(await engine.calculateScore(alice.address)).to.equal(690);
 
       await expect(
         engine.connect(alice).setMockProfile(bob.address, 100, 25, 2000, [], [], [], [])

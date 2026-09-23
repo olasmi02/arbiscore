@@ -6,7 +6,7 @@
  *  2. In each market with liquidity (USDG, test USDC): borrow + instant repay pays interest, earns NO credit.
  *  3. Portable credit: a real Aave V3 (Arbitrum One) borrower's history is attested by the API and
  *     imported on-chain through CreditImporter (EIP-712), then scored by the Stylus engine.
- *  4. The Alice persona, written by the owner (demo mode briefly on, then restored), scores exactly 812.
+ *  4. The Alice persona, written by the owner (demo mode briefly on, then restored), scores exactly 834.
  */
 import { ethers } from "hardhat";
 import * as fs from "fs";
@@ -125,7 +125,7 @@ async function main() {
   if (!demoWasOn) await send("demo mode off again", ownerEngine.setDemoMode(false));
   check(!(await engineRead.demoMode()) || demoWasOn, "demo mode restored");
   const [score, tier, ratio] = await engineRead.getScoreAndTier(u3.address);
-  check(Number(score) === 812 && tier === 3n && ratio === 10500n, `Stylus score ${score} = TypeScript 812, Prime at 105%`);
+  check(Number(score) === 834 && tier === 3n && ratio === 10500n, `Stylus score ${score} = TypeScript 834, Prime at 105%`);
 
   console.log("\nAll smoke checks passed against the live deployment.");
 }

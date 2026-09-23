@@ -242,6 +242,28 @@ impl ArbiScoreEngine {
         Ok(self.score_of(user))
     }
 
+    /// Read-only benchmark hook: the score averaged over `horizons` recency half-lives. Same storage
+    /// reads as `calculate_score`, `horizons` times the arithmetic, so it measures how the Stylus/EVM
+    /// gap scales with model complexity. Not used by the markets.
+    pub fn score_ensemble(&self, user: Address, horizons: u32) -> Result<u16, ScoreEngineError> {
+        let profile = self.profiles.getter(user);
+        let len = profile.history.len();
+        let mut loans = Vec::with_capacity(len.min(MAX_HISTORY));
+        for i in len.saturating_sub(MAX_HISTORY)..len {
+            if let Some(e) = profile.history.getter(i) {
+                loans.push(to_entry(&e));
+            }
+        }
+        Ok(scoring::score_ensemble(
+            profile.first_activity_timestamp.get().to::<u64>(),
+            profile.total_transactions.get().to::<u64>(),
+            cap_u64(profile.total_volume_usd.get()),
+            &loans,
+            self.vm().block_timestamp(),
+            horizons,
+        ))
+    }
+
     /// Score, tier and ratio in a single model evaluation (used by the vault).
     pub fn get_score_and_tier(&self, user: Address) -> Result<(u16, u8, u16), ScoreEngineError> {
         let score = self.score_of(user);

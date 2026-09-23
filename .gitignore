@@ -23,3 +23,5 @@ TEST_INFRA.md
 TEST_READY.md
 test_e2e/
 frontend/scripts/
+research/fit-weights/cache.json
+judge-prep/

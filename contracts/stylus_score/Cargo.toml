@@ -19,7 +19,7 @@ export-abi = ["stylus-sdk/export-abi"]
 contract-client-gen = []
 
 [lib]
-crate-type = ["cdylib", "rlib"]
+crate-type = ["lib", "cdylib"]
 
 [[bin]]
 name = "arbiscore-engine"

@@ -1,12 +1,14 @@
 /**
- * Deploys + activates the ArbiScore Stylus (Rust/WASM) engine without cargo-stylus.
- * Mirrors `cargo stylus deploy`: brotli-compress the WASM, prefix the Stylus EOF marker,
- * wrap it in minimal CREATE init code, then call ArbWasm.activateProgram.
+ * Activates the ArbiScore Stylus engine and claims its ownership in one run.
  *
- * Usage:
- *   node ../stylus_score/build_wasm.mjs
- *   npx hardhat run scripts/deployStylus.ts --network arbitrumSepolia
- *   DRY_RUN=1 npx hardhat run scripts/deployStylus.ts   # size check only
+ * Usual path (reproducible, verifiable on explorers):
+ *   cd ../stylus_score && cargo stylus deploy --no-activate ...     # prints the program address
+ *   PROGRAM_ADDRESS=0x... npx hardhat run scripts/deployStylus.ts --network arbitrumSepolia
+ *
+ * Fallback without cargo-stylus: omit PROGRAM_ADDRESS to deploy target/arbiscore_engine.stylus.wasm
+ * (from `node ../stylus_score/build_wasm.mjs`) directly: brotli-compress, prefix the Stylus EOF
+ * marker, wrap in minimal CREATE init code. That build is not explorer-verifiable.
+ *   DRY_RUN=1 npx hardhat run scripts/deployStylus.ts   # size check of the local build only
  */
 import { ethers, network } from "hardhat";
 import * as fs from "fs";
@@ -25,7 +27,7 @@ function buildInitCode(code: Uint8Array): string {
   return "0x" + prelude + ethers.hexlify(code).slice(2);
 }
 
-async function main() {
+function localProgramCode(): Uint8Array {
   const wasm = fs.readFileSync(WASM_PATH);
   const compressed = zlib.brotliCompressSync(wasm, {
     params: {
@@ -33,10 +35,16 @@ async function main() {
       [zlib.constants.BROTLI_PARAM_LGWIN]: 22,
     },
   });
-  const code = ethers.getBytes(ethers.concat([EOF_PREFIX, compressed]));
   console.log(`WASM: ${wasm.length} bytes -> compressed ${compressed.length} bytes (limit ${MAX_COMPRESSED_BYTES})`);
   if (compressed.length > MAX_COMPRESSED_BYTES) throw new Error("Compressed WASM exceeds Stylus 24KB limit");
-  if (process.env.DRY_RUN) return;
+  return ethers.getBytes(ethers.concat([EOF_PREFIX, compressed]));
+}
+
+async function main() {
+  if (process.env.DRY_RUN) {
+    localProgramCode();
+    return;
+  }
 
   const [deployer] = await ethers.getSigners();
   console.log(`Network: ${network.name} | Deployer: ${deployer.address}`);
@@ -45,7 +53,7 @@ async function main() {
   // 1. Deploy the compressed program (or reuse PROGRAM_ADDRESS if already deployed)
   let programAddress = process.env.PROGRAM_ADDRESS;
   if (!programAddress) {
-    const deployTx = await deployer.sendTransaction({ data: buildInitCode(code) });
+    const deployTx = await deployer.sendTransaction({ data: buildInitCode(localProgramCode()) });
     console.log(`Deploy tx: ${deployTx.hash}`);
     const receipt = await deployTx.wait();
     programAddress = receipt!.contractAddress!;
@@ -58,14 +66,20 @@ async function main() {
     ["function activateProgram(address program) payable returns (uint16 version, uint256 dataFee)"],
     deployer
   );
-  const [version, dataFee] = await arbWasm.activateProgram.staticCall(programAddress, {
-    value: ethers.parseEther("0.01"),
-  });
-  const fee = (dataFee * 120n) / 100n;
-  console.log(`Stylus version ${version}, data fee ${ethers.formatEther(dataFee)} ETH (sending ${ethers.formatEther(fee)})`);
-  const actTx = await arbWasm.activateProgram(programAddress, { value: fee });
-  console.log(`Activation tx: ${actTx.hash}`);
-  await actTx.wait();
+  let estimate: [bigint, bigint] | undefined;
+  try {
+    estimate = await arbWasm.activateProgram.staticCall(programAddress, { value: ethers.parseEther("0.01") });
+  } catch {
+    console.log("Program is already activated; skipping activation"); // ArbWasm reverts with ProgramUpToDate
+  }
+  if (estimate) {
+    const [version, dataFee] = estimate;
+    const fee = (dataFee * 120n) / 100n;
+    console.log(`Stylus version ${version}, data fee ${ethers.formatEther(dataFee)} ETH (sending ${ethers.formatEther(fee)})`);
+    const actTx = await arbWasm.activateProgram(programAddress, { value: fee });
+    console.log(`Activation tx: ${actTx.hash}`);
+    await actTx.wait();
+  }
 
   // 3. Claim ownership right away: init() is open until an owner is set, so don't leave a window.
   const engine = new ethers.Contract(

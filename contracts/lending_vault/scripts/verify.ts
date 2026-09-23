@@ -23,7 +23,7 @@ const targets = [
   { fqn: "contracts/CreditImporter.sol:CreditImporter", address: C.CreditImporter, args: [C.StylusScoreEngine, ATTESTER] },
   { fqn: "contracts/ChainlinkPriceOracle.sol:ChainlinkPriceOracle", address: C.PriceOracle, args: [ETH_USD_FEED, "0x0000000000000000000000000000000000000000", 24 * 3600] },
   { fqn: "contracts/mocks/MockERC20.sol:MockERC20", address: C.MockWETH, args: ["Wrapped Ether (ArbiScore test)", "WETH", 18] },
-  { fqn: "contracts/SolidityScoreEngine.sol:SolidityScoreEngine", address: C.SolidityScoreEngineBaseline, args: [] },
+  { fqn: "contracts/mocks/BenchScoreEngine.sol:BenchScoreEngine", address: C.SolidityScoreEngineBaseline, args: [] },
 ].filter((t) => t.address);
 
 async function sourcify(fqn: string, address: string, chainId: number) {

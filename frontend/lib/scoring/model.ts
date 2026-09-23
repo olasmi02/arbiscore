@@ -41,14 +41,15 @@ export const PARAMS = {
 
 // Logistic regression coefficients (fixed-point). Positive and negative terms are
 // accumulated separately so every implementation stays in unsigned arithmetic.
+// Fitted to Aave V3 Arbitrum One outcomes with product guardrails: research/fit-weights.
 export const COEF = {
-  intercept: -2_600_000n,
-  quality: 3_200_000n,
-  depth: 1_300_000n,
-  liquidation: -2_600_000n,
-  age: 900_000n,
-  activity: 350_000n,
-  volume: 350_000n,
+  intercept: -1_600_000n,
+  quality: 1_900_000n,
+  depth: 2_500_000n,
+  liquidation: -3_500_000n,
+  age: 700_000n,
+  activity: 600_000n,
+  volume: 600_000n,
   utilization: -400_000n,
 } as const;
 

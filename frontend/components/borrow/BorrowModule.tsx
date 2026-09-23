@@ -81,7 +81,9 @@ export function BorrowModule({ persona }: BorrowModuleProps) {
               <div className="p-2.5 rounded-lg bg-zinc-900/60 border border-zinc-800">
                 <div className="text-[10px] text-zinc-500 uppercase tracking-wider">Oracle Price</div>
                 <div className="text-sm font-bold text-zinc-200 tabular-nums">
-                  ${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {stats
+                    ? `$${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                    : '…'}
                 </div>
               </div>
               <div className="p-2.5 rounded-lg bg-zinc-900/60 border border-zinc-800">

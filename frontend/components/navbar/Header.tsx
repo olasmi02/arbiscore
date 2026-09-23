@@ -38,7 +38,10 @@ export function Header() {
         {/* Center / Price Feed & Sandbox Mode Toggle */}
         <div className="hidden xl:flex items-center gap-4">
           {/* Oracle ETH Price Ticker */}
-          <div className="flex items-center gap-2 px-3 py-1 rounded-full border border-zinc-800/80 bg-zinc-900/60 text-xs font-mono">
+          <div
+            title="Chainlink ETH/USD on Arbitrum Sepolia: the price the vaults use. Refreshed every 30 seconds."
+            className="flex items-center gap-2 px-3 py-1 rounded-full border border-zinc-800/80 bg-zinc-900/60 text-xs font-mono"
+          >
             <span className="text-zinc-500 uppercase tracking-wider text-[10px]">Chainlink ETH / USD</span>
             <span className="text-zinc-200 tabular-nums font-semibold">
               {market ? `$${market.ethPriceUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '…'}
@@ -62,6 +65,18 @@ export function Header() {
 
         {/* Right / Web3 Controls */}
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          {/* Compact live ETH price below xl, where the center strip is hidden */}
+          <div
+            title="Chainlink ETH/USD on Arbitrum Sepolia: the price the vaults use. Refreshed every 30 seconds."
+            className="hidden md:flex xl:hidden items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-zinc-800/80 bg-zinc-900/60 text-[11px] font-mono"
+          >
+            <span className="text-zinc-500">ETH</span>
+            <span className="text-zinc-200 tabular-nums font-semibold">
+              {market ? `$${market.ethPriceUSD.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : '…'}
+            </span>
+            <span className={`w-1.5 h-1.5 rounded-full ${market ? 'bg-emerald-500' : 'bg-zinc-600'}`} />
+          </div>
+
           {/* Compact sandbox toggle below xl, where the center strip is hidden */}
           <button
             onClick={() => setIsSandboxMode(!isSandboxMode)}

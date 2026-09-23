@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useSandbox } from '@/lib/context/SandboxContext';
 import { useAccount } from 'wagmi';
 import { useCreditVaultTx } from '@/hooks/useCreditVaultTx';
+import { useMarketStats } from '@/hooks/useOnChainBorrower';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { Coins, Plus, Minus, Lock, Unlock, Database } from 'lucide-react';
@@ -13,6 +14,11 @@ export function CollateralCard() {
     useSandbox();
   const { isConnected } = useAccount();
   const { depositCollateral, withdrawFreeCollateral, txStatus } = useCreditVaultTx();
+
+  // Live Chainlink ETH/USD (the price the vault itself uses), refreshed every 30s
+  const ethPrice = useMarketStats().data?.ethPriceUSD;
+  const toUsd = (eth: number) =>
+    ethPrice === undefined ? '…' : (eth * ethPrice).toLocaleString('en-US', { maximumFractionDigits: 2 });
 
   const [isDepositOpen, setIsDepositOpen] = useState(false);
   const [depositAmount, setDepositAmount] = useState('1.0');
@@ -84,7 +90,7 @@ export function CollateralCard() {
               {collateralState.depositedETH.toFixed(4)} ETH
             </div>
             <div className="text-[11px] font-mono text-zinc-400 tabular-nums mt-0.5">
-              ${(collateralState.depositedETH * 3000).toLocaleString()} USD
+              ${toUsd(collateralState.depositedETH)} USD
             </div>
           </div>
 
@@ -98,7 +104,7 @@ export function CollateralCard() {
               {collateralState.lockedETH.toFixed(4)} ETH
             </div>
             <div className="text-[11px] font-mono text-zinc-400 tabular-nums mt-0.5">
-              ${(collateralState.lockedETH * 3000).toLocaleString()} USD
+              ${toUsd(collateralState.lockedETH)} USD
             </div>
           </div>
 
@@ -112,7 +118,7 @@ export function CollateralCard() {
               {collateralState.freeETH.toFixed(4)} ETH
             </div>
             <div className="text-[11px] font-mono text-zinc-400 tabular-nums mt-0.5">
-              ${(collateralState.freeETH * 3000).toLocaleString()} USD
+              ${toUsd(collateralState.freeETH)} USD
             </div>
           </div>
         </div>
@@ -144,7 +150,7 @@ export function CollateralCard() {
               </span>
             </div>
             <div className="mt-1 text-[11px] font-mono text-zinc-500">
-              Equivalent: ${(parseFloat(depositAmount || '0') * 3000).toLocaleString()} USD
+              Equivalent: ${toUsd(parseFloat(depositAmount || '0') || 0)} USD
             </div>
           </div>
 

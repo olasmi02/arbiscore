@@ -130,11 +130,9 @@ export function computeFeatures(input: ModelInput): Features {
     const loan = loans[i];
     let refTs: bigint;
     if (loan.status === LOAN_OPEN) {
-      if (now <= loan.dueTs) {
-        openPrincipal += loan.amountUsd;
-        continue;
-      }
-      refTs = loan.dueTs; // overdue: delinquent evidence
+      openPrincipal += loan.amountUsd;
+      if (now <= loan.dueTs) continue;
+      refTs = now; // overdue and unpaid: a current default, so it doesn't fade while it stays unpaid
     } else {
       refTs = loan.closeTs;
     }
@@ -157,10 +155,8 @@ export function computeFeatures(input: ModelInput): Features {
       const outcome = lateFp === 0n ? S : exp2Neg(lateFp / PARAMS.lateHalfDays);
       G += (w * outcome) / S;
       if (loan.amountUsd > maxRepaid) maxRepaid = loan.amountUsd;
-    } else if (loan.status === LOAN_LIQUIDATED) {
-      L += w;
     } else {
-      L += w / 2n;
+      L += w; // liquidated, or open past its due date: full default weight
     }
   }
 

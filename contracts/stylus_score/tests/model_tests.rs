@@ -170,3 +170,26 @@ fn instant_borrow_repay_loops_earn_no_credit() {
     assert!(held(1) < held(7) && held(7) < held(14));
     assert_eq!(held(14), held(20));
 }
+
+#[test]
+fn unpaid_overdue_loan_never_improves_the_score() {
+    // Bob-like history fixed at time R; one open $2,500 loan due 18 days after R
+    const R: u64 = NOW;
+    let loans = [
+        spec_to_entry(3_000, 190, LOAN_REPAID, 12, R),
+        spec_to_entry(5_000, 160, LOAN_LIQUIDATED, 0, R),
+        spec_to_entry(2_000, 130, LOAN_REPAID, 0, R),
+        spec_to_entry(4_000, 95, LOAN_LIQUIDATED, 0, R),
+        spec_to_entry(1_500, 60, LOAN_REPAID, 5, R),
+        spec_to_entry(2_500, 12, LOAN_OPEN, 0, R),
+    ];
+    let first = R - 200 * DAY;
+    let before_due = compute_score(first, 220, 30_000, &loans, R + 17 * DAY);
+    let just_overdue = compute_score(first, 220, 30_000, &loans, R + 19 * DAY);
+    assert!(just_overdue + 20 < before_due, "going overdue must hurt: {before_due} -> {just_overdue}");
+    for d in (19..=400).step_by(7) {
+        let s = compute_score(first, 220, 30_000, &loans, R + d * DAY);
+        assert!(s < before_due, "day {d}: unpaid overdue loan scored {s}, above the pre-due {before_due}");
+        assert!(score_to_tier(s).0 == score_to_tier(just_overdue).0, "day {d}: tier improved to {s} while still unpaid");
+    }
+}

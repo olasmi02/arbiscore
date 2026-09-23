@@ -1,13 +1,13 @@
 // Arbitrum Sepolia deployment (contracts/lending_vault/deployments.json); override via NEXT_PUBLIC_* env vars.
 export const CONTRACT_ADDRESSES = {
   stylusEngine: (process.env.NEXT_PUBLIC_STYLUS_ENGINE_ADDRESS ||
-    '0x52C5B587c4dAB33294Dfb04200c74940D2D4B7f4') as `0x${string}`,
+    '0x8B71077056b52ca10f96451BD3E3565274D72034') as `0x${string}`,
   weth: (process.env.NEXT_PUBLIC_WETH_ADDRESS ||
-    '0x193Ac2555f46900eFf2f2E5cE335AB12f4Ebbc97') as `0x${string}`,
+    '0x7B4546fB769D17b1B31C91B7a6e51b8933Bc029e') as `0x${string}`,
   priceOracle: (process.env.NEXT_PUBLIC_ORACLE_ADDRESS ||
-    '0x3005dE0C1ad764BbD4BF58A9D7c324BC30605e0E') as `0x${string}`,
+    '0xB218b7953eEEC07D8cbe952E4362F405640f9ee2') as `0x${string}`,
   creditImporter: (process.env.NEXT_PUBLIC_CREDIT_IMPORTER_ADDRESS ||
-    '0xfabA30b9D826a5Bb41245E4E7Be323A5f7901BC9') as `0x${string}`,
+    '0xfB6B20D7bE0525861978aDc9C917d53bC1a2Df92') as `0x${string}`,
 } as const;
 
 export const USDG_FAUCET_URL = 'https://faucet.paxos.com/';
@@ -30,7 +30,7 @@ export const MARKETS: Record<MarketId, MarketConfig> = {
     id: 'USDG',
     symbol: 'USDG',
     label: 'Paxos USDG',
-    vault: (process.env.NEXT_PUBLIC_VAULT_ADDRESS || '0xB1e571c2fe06156A1DE45D6Af4A6807118E0B94E') as `0x${string}`,
+    vault: (process.env.NEXT_PUBLIC_VAULT_ADDRESS || '0x893625C0Defa9d9220eF173fA7F4Fb6ee9A89b08') as `0x${string}`,
     asset: (process.env.NEXT_PUBLIC_USDG_ADDRESS || '0xFFC95faa3d63Cde504a05B567C600B78C0b41892') as `0x${string}`,
     hasTokenFaucet: false,
   },
@@ -38,8 +38,8 @@ export const MARKETS: Record<MarketId, MarketConfig> = {
     id: 'USDC',
     symbol: 'USDC',
     label: 'Test USDC',
-    vault: (process.env.NEXT_PUBLIC_VAULT_USDC_ADDRESS || '0x84b7BdA8d5e94DFdB90D8Cf2Aa50532621E31303') as `0x${string}`,
-    asset: (process.env.NEXT_PUBLIC_TEST_USDC_ADDRESS || '0xDA7A4bB5b6c00ad879ba3eDC841a10a6899A0DE1') as `0x${string}`,
+    vault: (process.env.NEXT_PUBLIC_VAULT_USDC_ADDRESS || '0x0299E5b7798b370dEeDc50C1F16C04e9676D3aE3') as `0x${string}`,
+    asset: (process.env.NEXT_PUBLIC_TEST_USDC_ADDRESS || '0x14aA933f6478F89c20fBEFe219c7472416f72255') as `0x${string}`,
     hasTokenFaucet: true,
   },
 };

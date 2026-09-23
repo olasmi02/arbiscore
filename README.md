@@ -42,7 +42,7 @@ A fixed-point **logistic regression** over seven features computed from the wall
 |---|---|
 | Repayment quality | Each repaid loan is weighted by **recency** (half-life of 180 days), **size** (√amount) and **seasoning** (time outstanding, full at 14 days). A loan repaid 15 days late counts half. Beta-prior smoothing keeps a thin history from producing an extreme score |
 | Credit depth | Total weighted evidence, saturating |
-| Liquidations | Weighted liquidations, plus overdue open loans at half weight. Both fade over time |
+| Liquidations | Weighted liquidations, which fade over time once they're in the past. An open loan past its due date counts as a full liquidation that does **not** fade while it stays unpaid |
 | Utilization | Open principal relative to the largest loan the wallet has repaid |
 | Wallet age, activity, volume | Saturating curves |
 
@@ -106,10 +106,10 @@ The identical model and inputs were run through both engines on Arbitrum Sepolia
 
 | Loans in history | Solidity | Stylus | Stylus advantage |
 |---|---|---|---|
-| 0 | 12,263 | 30,417 | Solidity is 2.5× cheaper |
-| 8 | 61,048 | 52,076 | **1.17×** |
-| 32 | 214,844 | 118,000 | **1.82×** |
-| 64 | 418,764 | 205,264 | **2.04×** |
+| 0 | 12,263 | 30,419 | Solidity is 2.5× cheaper |
+| 8 | 60,968 | 52,075 | **1.17×** |
+| 32 | 214,613 | 117,993 | **1.82×** |
+| 64 | 418,277 | 205,239 | **2.04×** |
 
 **How to read this:**
 - **The math is about 6.7× cheaper in Stylus.** Each loan adds about 2,700 gas in Stylus and about 6,350 in Solidity. About 2,100 of each is the storage read for the loan record, which costs the same on both VMs. The remaining arithmetic is roughly 630 gas in Stylus against 4,250 in the EVM.
@@ -120,11 +120,11 @@ The identical model and inputs were run through both engines on Arbitrum Sepolia
 
 | Model evaluations (k), 64 loans | Solidity | Stylus | Stylus advantage |
 |---|---|---|---|
-| 1 | 451,842 | 205,982 | **2.19×** |
-| 4 | 1,217,873 | 242,426 | **5.02×** |
-| 16 | 4,282,006 | 388,123 | **11.03×** |
+| 1 | 451,356 | 205,957 | **2.19×** |
+| 4 | 1,215,914 | 242,324 | **5.02×** |
+| 16 | 4,274,157 | 387,711 | **11.02×** |
 
-**To be clear:** the live scoring path is about **2× cheaper** in Stylus. Today's model fits in Solidity; it costs about 419k gas at 64 loans, and Stylus doesn't make on-chain credit scoring possible for the first time. The 11× figure is for a hypothetical model 16 times heavier. It shows how much room Stylus leaves to grow the model, not what the markets pay today.
+**To be clear:** the live scoring path is about **2× cheaper** in Stylus. Today's model fits in Solidity; it costs about 418k gas at 64 loans, and Stylus doesn't make on-chain credit scoring possible for the first time. The 11× figure is for a hypothetical model 16 times heavier. It shows how much room Stylus leaves to grow the model, not what the markets pay today.
 
 ## Decisions and tradeoffs
 
@@ -164,28 +164,28 @@ See [`SECURITY.md`](SECURITY.md) for the full threat model and the Slither triag
 
 | Contract | Address |
 |---|---|
-| ArbiScoreEngine (Rust / Stylus) | [`0x52C5B587c4dAB33294Dfb04200c74940D2D4B7f4`](https://sepolia.arbiscan.io/address/0x52C5B587c4dAB33294Dfb04200c74940D2D4B7f4) |
-| ArbiCreditVault, USDG market (`asUSDG`) | [`0xB1e571c2fe06156A1DE45D6Af4A6807118E0B94E`](https://sepolia.arbiscan.io/address/0xB1e571c2fe06156A1DE45D6Af4A6807118E0B94E#code) |
-| ArbiCreditVault, test USDC market (`asUSDC`) | [`0x84b7BdA8d5e94DFdB90D8Cf2Aa50532621E31303`](https://sepolia.arbiscan.io/address/0x84b7BdA8d5e94DFdB90D8Cf2Aa50532621E31303#code) |
-| CreditImporter | [`0xfabA30b9D826a5Bb41245E4E7Be323A5f7901BC9`](https://sepolia.arbiscan.io/address/0xfabA30b9D826a5Bb41245E4E7Be323A5f7901BC9#code) |
-| ChainlinkPriceOracle (ETH/USD) | [`0x3005dE0C1ad764BbD4BF58A9D7c324BC30605e0E`](https://sepolia.arbiscan.io/address/0x3005dE0C1ad764BbD4BF58A9D7c324BC30605e0E#code) |
+| ArbiScoreEngine (Rust / Stylus) | [`0x8B71077056b52ca10f96451BD3E3565274D72034`](https://sepolia.arbiscan.io/address/0x8B71077056b52ca10f96451BD3E3565274D72034) |
+| ArbiCreditVault, USDG market (`asUSDG`) | [`0x893625C0Defa9d9220eF173fA7F4Fb6ee9A89b08`](https://sepolia.arbiscan.io/address/0x893625C0Defa9d9220eF173fA7F4Fb6ee9A89b08#code) |
+| ArbiCreditVault, test USDC market (`asUSDC`) | [`0x0299E5b7798b370dEeDc50C1F16C04e9676D3aE3`](https://sepolia.arbiscan.io/address/0x0299E5b7798b370dEeDc50C1F16C04e9676D3aE3#code) |
+| CreditImporter | [`0xfB6B20D7bE0525861978aDc9C917d53bC1a2Df92`](https://sepolia.arbiscan.io/address/0xfB6B20D7bE0525861978aDc9C917d53bC1a2Df92#code) |
+| ChainlinkPriceOracle (ETH/USD) | [`0xB218b7953eEEC07D8cbe952E4362F405640f9ee2`](https://sepolia.arbiscan.io/address/0xB218b7953eEEC07D8cbe952E4362F405640f9ee2#code) |
 | USDG (Paxos) | [`0xFFC95faa3d63Cde504a05B567C600B78C0b41892`](https://sepolia.arbiscan.io/address/0xFFC95faa3d63Cde504a05B567C600B78C0b41892) |
-| Test USDC (public faucet) | [`0xDA7A4bB5b6c00ad879ba3eDC841a10a6899A0DE1`](https://sepolia.arbiscan.io/address/0xDA7A4bB5b6c00ad879ba3eDC841a10a6899A0DE1#code) |
-| Test WETH (collateral, public faucet) | [`0x193Ac2555f46900eFf2f2E5cE335AB12f4Ebbc97`](https://sepolia.arbiscan.io/address/0x193Ac2555f46900eFf2f2E5cE335AB12f4Ebbc97#code) |
-| SolidityScoreEngine (benchmark baseline) | [`0x88A09B31e7904ab3cC766a28D5E115512a61Bd0e`](https://sepolia.arbiscan.io/address/0x88A09B31e7904ab3cC766a28D5E115512a61Bd0e#code) |
+| Test USDC (public faucet) | [`0x14aA933f6478F89c20fBEFe219c7472416f72255`](https://sepolia.arbiscan.io/address/0x14aA933f6478F89c20fBEFe219c7472416f72255#code) |
+| Test WETH (collateral, public faucet) | [`0x7B4546fB769D17b1B31C91B7a6e51b8933Bc029e`](https://sepolia.arbiscan.io/address/0x7B4546fB769D17b1B31C91B7a6e51b8933Bc029e#code) |
+| SolidityScoreEngine (benchmark baseline) | [`0x3db8D9905B77763b9C7a9436395e3312cf6E8A95`](https://sepolia.arbiscan.io/address/0x3db8D9905B77763b9C7a9436395e3312cf6E8A95#code) |
 
 **Source verification:**
 - **Solidity:** every Solidity contract above is verified on **Arbiscan** (the `#code` links) and on **Sourcify** with an exact match. Reproduce with `npx hardhat run scripts/verify.ts --network arbitrumSepolia` (Arbiscan needs `ETHERSCAN_API_KEY` in `.env`).
-- **Stylus engine (reproducible build):** deployed with `cargo stylus deploy` (cargo-stylus 0.10.9) from a pinned Docker build: Rust 1.91.0 plus a Binaryen `wasm-opt` 132 recipe declared in [`Stylus.toml`](contracts/stylus_score/Stylus.toml). The deployment carries the project hash `ee18d7be…7516`. Anyone can rebuild and check it with `cargo stylus verify --deployment-tx 0xca764af479f3596a575a3ac0dbb446c815c6d28a399bbcb4079e9daedd828e69` from `contracts/stylus_score`, which prints `Verification successful`.
+- **Stylus engine (reproducible build):** deployed with `cargo stylus deploy` (cargo-stylus 0.10.9) from a pinned Docker build: Rust 1.91.0 plus a Binaryen `wasm-opt` 132 recipe declared in [`Stylus.toml`](contracts/stylus_score/Stylus.toml). The deployment carries the project hash `328d5f14…2457`. Anyone can rebuild and check it with `cargo stylus verify --deployment-tx 0x68a2f427ab6fec266c63f7b6db870305e6d3967da28987d5c747039020f5c43d` from `contracts/stylus_score`, which prints `Verification successful`.
 
-Stylus [deployment](https://sepolia.arbiscan.io/tx/0xca764af479f3596a575a3ac0dbb446c815c6d28a399bbcb4079e9daedd828e69), [activation](https://sepolia.arbiscan.io/tx/0xf5a0b42cbaa82630ac253f82318e066b35a0dc5c2ff2199f1a4ed9020666427a) and [cache bid](https://sepolia.arbiscan.io/tx/0x29576bf860461e7e2682d557af7ebce63021a64f6a3d0ce362a3c93bcc437048). Demo mode is **off**, so no one, the owner included, can rewrite an existing credit history.
+Stylus [deployment](https://sepolia.arbiscan.io/tx/0x68a2f427ab6fec266c63f7b6db870305e6d3967da28987d5c747039020f5c43d), [activation](https://sepolia.arbiscan.io/tx/0x9095d1b9858049f905377465c3045093ff0d31ab9b39adf633035b79ce9099d4) and [cache bid](https://sepolia.arbiscan.io/tx/0xb08d75f12d20ea17ece70fd6019cec13fe5b112976b0bea2d0e92aaa53cced75). Demo mode is **off**, so no one, the owner included, can rewrite an existing credit history.
 
 The live smoke test ([`scripts/smokeTest.ts`](contracts/lending_vault/scripts/smokeTest.ts)) checked the following on this deployment:
 1. **New wallets:** a fresh wallet scores 300 and is quoted 150% collateral at the live Chainlink price.
-2. **Live lending, no farming:** it [borrowed](https://sepolia.arbiscan.io/tx/0x38c98d0b32228912d99baf2beea08f85a8a3956e7783468f865cd38c51e16ab4) 5 test USDC and [repaid it with interest](https://sepolia.arbiscan.io/tx/0x809051cea25bb489541c3281b32fc548ba357fb207841f8b87a3d8529d56c97e) straight away. The score stayed at **512 → 512**, because an instant loop earns no credit.
+2. **Live lending, no farming:** it [borrowed](https://sepolia.arbiscan.io/tx/0x236640920dda5c93c0ee9c1ccf8b3d697042b2bbc05098ad65ef79848523b33a) 5 test USDC and [repaid it with interest](https://sepolia.arbiscan.io/tx/0xcbbc81dd42971da8e51395c04a9f46ee84c9f30249122b0117391a44886365cb) straight away. The score stayed at **512 → 512**, because an instant loop earns no credit.
 3. **Portable credit, both ways:**
-   - A real Aave V3 borrower with a clean record (31 borrows over ~20 months, 10 repaid positions) was attested, [imported via EIP-712](https://sepolia.arbiscan.io/tx/0x54585548ca396f783754b7baee6c28713939595f96a0ec2760deeb2fe567c905) and scored **818 (Prime, 105%)**.
-   - A real borrower who was liquidated on about $34k of debt [imported](https://sepolia.arbiscan.io/tx/0x8e68bb49953bf2117f5236b9a3f79a818a7b7cd0026847c0db2f1caa44a1080f) at **418 (Subprime, 150%)**.
+   - A real Aave V3 borrower with a clean record (31 borrows over ~20 months, 10 repaid positions) was attested, [imported via EIP-712](https://sepolia.arbiscan.io/tx/0xb6f157ee2574eb90eb78d36e50c1c8fe947fb33dbbe295cdee533c5934ef5511) and scored **818 (Prime, 105%)**.
+   - A real borrower who was liquidated on about $34k of debt [imported](https://sepolia.arbiscan.io/tx/0xa1a1f9629a122a1329e8be30c88165be46572ab008f6f725a5afd5b306bd778d) at **418 (Subprime, 150%)**.
    - Re-importing was rejected with `AlreadyHasHistory`.
 4. **Parity:** the "Alice" persona scores exactly **834** on-chain, matching the TypeScript model.
 

@@ -114,11 +114,12 @@ library ArbiScoreModel {
             uint256 amount = loan.amountUsd;
             uint256 refTs;
             if (loan.status == LOAN_OPEN) {
+                acc.openPrincipal += amount;
                 if (nowTs <= loan.dueTs) {
-                    acc.openPrincipal += amount;
                     return;
                 }
-                refTs = loan.dueTs;
+                // Overdue and unpaid: a current default, so it doesn't fade while it stays unpaid
+                refTs = nowTs;
             } else {
                 refTs = loan.closeTs;
             }
@@ -140,10 +141,9 @@ library ArbiScoreModel {
                 uint256 outcome = lateFp == 0 ? S : exp2Neg(lateFp / LATE_HALF_DAYS);
                 acc.g += (w * outcome) / S;
                 if (amount > acc.maxRepaid) acc.maxRepaid = amount;
-            } else if (loan.status == LOAN_LIQUIDATED) {
-                acc.l += w;
             } else {
-                acc.l += w / 2;
+                // Liquidated, or open past its due date: full default weight
+                acc.l += w;
             }
         }
     }

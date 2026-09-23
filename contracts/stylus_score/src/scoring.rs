@@ -156,11 +156,12 @@ impl Accumulator {
     pub fn add_with_half_life(&mut self, loan: &LoanEntry, now: u64, half_life_days: u128) {
         let amount = loan.amount_usd as u128;
         let ref_ts = if loan.status == LOAN_OPEN {
+            self.open_principal += amount;
             if now <= loan.due_ts {
-                self.open_principal += amount;
                 return;
             }
-            loan.due_ts
+            // Overdue and unpaid: a current default, so it doesn't fade while it stays unpaid
+            now
         } else {
             loan.close_ts
         };
@@ -194,10 +195,9 @@ impl Accumulator {
             if amount > self.max_repaid {
                 self.max_repaid = amount;
             }
-        } else if loan.status == LOAN_LIQUIDATED {
-            self.l += w;
         } else {
-            self.l += w / 2;
+            // Liquidated, or open past its due date: full default weight
+            self.l += w;
         }
     }
 

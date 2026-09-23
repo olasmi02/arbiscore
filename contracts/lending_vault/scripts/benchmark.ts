@@ -21,6 +21,8 @@ const ENGINE_ABI = [
   "function calculateScore(address) view returns (uint16)",
   "function onLoanClosed(address,uint32,bool) returns (uint16)",
   "function setMockProfile(address,uint32,uint32,uint256,uint64[],uint32[],uint8[],uint32[]) returns (uint16)",
+  "function demoMode() view returns (bool)",
+  "function setDemoMode(bool)",
 ];
 
 // Deterministic mixed history: mostly repaid (some late), some liquidated; the last loan is open.
@@ -63,12 +65,17 @@ async function main() {
   }
 
   const iface = new ethers.Interface(ENGINE_ABI);
+  const runId = Date.now();
   const rows: { engine: string; loans: number; score: number; readGas: bigint; closeGas: bigint | null }[] = [];
 
   for (const [name, addr] of Object.entries(engines)) {
     const engine = new ethers.Contract(addr, ENGINE_ABI, deployer);
+    // Seeding benchmark profiles needs demo mode (owner writes); restore the previous state afterwards
+    const demoWasOn: boolean = await engine.demoMode();
+    if (!demoWasOn) await (await engine.setDemoMode(true)).wait();
     for (const n of HISTORY_SIZES) {
-      const user = ethers.getAddress(ethers.zeroPadValue(ethers.toBeHex(0xbe0000 + n), 20));
+      // Fresh address per run: the engine never rewrites a history that has an open loan
+      const user = ethers.getAddress(ethers.dataSlice(ethers.id(`bench:${runId}:${n}`), 12));
       const [a, d, s, l] = history(n);
       await (await engine.setMockProfile(user, 540, 140, 48_000, a, d, s, l)).wait();
       const score = Number(await engine.calculateScore(user));
@@ -80,6 +87,7 @@ async function main() {
       rows.push({ engine: name, loans: n, score, readGas, closeGas });
       console.log(`${name.padEnd(14)} loans=${String(n).padStart(2)} score=${score} calculateScore=${readGas} onLoanClosed=${closeGas ?? "-"}`);
     }
+    if (!demoWasOn) await (await engine.setDemoMode(false)).wait();
   }
 
   // Scores must agree across engines (same model, same inputs).

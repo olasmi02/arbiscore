@@ -49,10 +49,10 @@ We ran the identical model and inputs through both engines on Arbitrum Sepolia. 
 
 | Loans in history | Solidity | Stylus | Stylus advantage |
 |---|---|---|---|
-| 0 | 12,269 | 29,615 | Solidity is 2.4× cheaper |
-| 8 | 60,576 | 51,178 | **1.18×** |
-| 32 | 212,898 | 116,916 | **1.82×** |
-| 64 | 414,850 | 203,887 | **2.03×** |
+| 0 | 12,264 | 29,628 | Solidity is 2.4× cheaper |
+| 8 | 60,545 | 51,241 | **1.18×** |
+| 32 | 212,890 | 116,952 | **1.82×** |
+| 64 | 414,842 | 203,913 | **2.03×** |
 
 **How to read this:**
 - **The math is about 6.7× cheaper in Stylus.** Each loan adds about 2,700 gas in Stylus and about 6,300 in Solidity. About 2,100 of each is the storage read for the loan record, which costs the same on both VMs. The remaining arithmetic is roughly 620 gas in Stylus against 4,190 in the EVM.
@@ -80,26 +80,26 @@ See [`SECURITY.md`](SECURITY.md) for the full threat model and the Slither triag
 
 | Contract | Address |
 |---|---|
-| ArbiScoreEngine (Rust / Stylus) | [`0xA8E32a9128a24eAECd4e9075A1fa4dda9DD1250b`](https://sepolia.arbiscan.io/address/0xA8E32a9128a24eAECd4e9075A1fa4dda9DD1250b) |
-| ArbiCreditVault, USDG market (`asUSDG`) | [`0x7A7a4B77597A36958055DC4652eAb542a8466e6A`](https://sepolia.arbiscan.io/address/0x7A7a4B77597A36958055DC4652eAb542a8466e6A#code) |
-| ArbiCreditVault, test USDC market (`asUSDC`) | [`0x846e488015b64dfE09ECeEa7996A1b3165B67541`](https://sepolia.arbiscan.io/address/0x846e488015b64dfE09ECeEa7996A1b3165B67541#code) |
-| CreditImporter | [`0xf494Cd15Ad8439df3997B56192812D5330D8E8e5`](https://sepolia.arbiscan.io/address/0xf494Cd15Ad8439df3997B56192812D5330D8E8e5#code) |
-| ChainlinkPriceOracle (ETH/USD) | [`0xBeB7D2D75184F3c3B405F28448C02050859aF910`](https://sepolia.arbiscan.io/address/0xBeB7D2D75184F3c3B405F28448C02050859aF910#code) |
+| ArbiScoreEngine (Rust / Stylus) | [`0xd60CF3F65E7a219aF4c992672AC16d572e055405`](https://sepolia.arbiscan.io/address/0xd60CF3F65E7a219aF4c992672AC16d572e055405) |
+| ArbiCreditVault, USDG market (`asUSDG`) | [`0xdca912bc96a99806a8cF53bfdFBC41B8e0b92C3e`](https://sepolia.arbiscan.io/address/0xdca912bc96a99806a8cF53bfdFBC41B8e0b92C3e#code) |
+| ArbiCreditVault, test USDC market (`asUSDC`) | [`0xe82e14050F25Cb798C93A72407D2B8E079133C6f`](https://sepolia.arbiscan.io/address/0xe82e14050F25Cb798C93A72407D2B8E079133C6f#code) |
+| CreditImporter | [`0xba4eC290ec6f872D3864E1B7489741f43602Eb1E`](https://sepolia.arbiscan.io/address/0xba4eC290ec6f872D3864E1B7489741f43602Eb1E#code) |
+| ChainlinkPriceOracle (ETH/USD) | [`0x747459E754c6dcc3Aad80275d20B85766F148C0C`](https://sepolia.arbiscan.io/address/0x747459E754c6dcc3Aad80275d20B85766F148C0C#code) |
 | USDG (Paxos) | [`0xFFC95faa3d63Cde504a05B567C600B78C0b41892`](https://sepolia.arbiscan.io/address/0xFFC95faa3d63Cde504a05B567C600B78C0b41892) |
-| Test USDC (public faucet) | [`0xA488f89cE03A00E214C216Efd1F68E9960042379`](https://sepolia.arbiscan.io/address/0xA488f89cE03A00E214C216Efd1F68E9960042379#code) |
-| Test WETH (collateral, public faucet) | [`0x86Eb3A5BBAB09Df84a26B681593E4c14F45053bD`](https://sepolia.arbiscan.io/address/0x86Eb3A5BBAB09Df84a26B681593E4c14F45053bD#code) |
-| SolidityScoreEngine (benchmark baseline) | [`0x3794B8E649E969Ca9f8c8E08B37bc8CF306b990e`](https://sepolia.arbiscan.io/address/0x3794B8E649E969Ca9f8c8E08B37bc8CF306b990e#code) |
+| Test USDC (public faucet) | [`0x01997b100e67F927b9091055A237b6404143c9Ac`](https://sepolia.arbiscan.io/address/0x01997b100e67F927b9091055A237b6404143c9Ac#code) |
+| Test WETH (collateral, public faucet) | [`0xE78BD7a9D205ec879f3550B4a23a3accA7002384`](https://sepolia.arbiscan.io/address/0xE78BD7a9D205ec879f3550B4a23a3accA7002384#code) |
+| SolidityScoreEngine (benchmark baseline) | [`0x6Badd214442c6FFE965f123D8173D8D08616e85E`](https://sepolia.arbiscan.io/address/0x6Badd214442c6FFE965f123D8173D8D08616e85E#code) |
 
 **Source verification:**
 - **Solidity:** every Solidity contract above is verified on **Arbiscan** (the `#code` links) and on **Sourcify** with an exact match. Reproduce with `npx hardhat run scripts/verify.ts --network arbitrumSepolia` (Arbiscan needs `ETHERSCAN_API_KEY` in `.env`).
-- **Stylus engine (reproducible build):** Arbiscan can't verify it, because we post-process the WASM with Binaryen (see Build and test). Instead, anyone can rebuild it and compare hashes. The decompressed on-chain program has SHA-256 **`941a61d955c1b502d6173886be2966ba82e5255ca9e9b1848ec2722940c2e90d`** (68,430 bytes). Build with `node contracts/stylus_score/build_wasm.mjs` (rustc 1.98.1, Binaryen 132 pinned, `Cargo.lock` committed), then run `npx hardhat run scripts/verifyStylusBytecode.ts --network arbitrumSepolia`, which prints `MATCH`.
+- **Stylus engine (reproducible build):** Arbiscan can't verify it, because we post-process the WASM with Binaryen (see Build and test). Instead, anyone can rebuild it and compare hashes. The decompressed on-chain program has SHA-256 **`753dcf86769adff2f2409097f6b391e18795e63a702b1a38ffc182cf8aac06c4`** (68,347 bytes). Build with `node contracts/stylus_score/build_wasm.mjs` (rustc 1.98.1, Binaryen 132 pinned, `Cargo.lock` committed), then run `npx hardhat run scripts/verifyStylusBytecode.ts --network arbitrumSepolia`, which prints `MATCH`.
 
-Stylus [deployment](https://sepolia.arbiscan.io/tx/0x2014f4018c4f49883d68ddfd74549d2ae88358f48415021988c1b8a2f316555e), [activation](https://sepolia.arbiscan.io/tx/0xb2ac3638e721c1391b93045e2c41661683de590ce8ec0c1c7ce09ddf017364e7) and [cache bid](https://sepolia.arbiscan.io/tx/0xd67933a732dd37b3f75afec8436937fd2204684ce6eb1dae23660634004715a9). Demo mode (self-written histories) is **off**.
+Stylus [deployment](https://sepolia.arbiscan.io/tx/0x381e5eac0e16ca482e40aa21613b4965b193477b5e1f9f9ab28a493d6fe477bc), [activation](https://sepolia.arbiscan.io/tx/0x6d11d369c483af87c038c165afeb7c0e001cc732636bc918e118870fcf5893dd) and [cache bid](https://sepolia.arbiscan.io/tx/0x9d07725473004482c10502b8790028a94caecefc70ffd3002992401ae74c39af). Demo mode is **off**, so no one, the owner included, can rewrite an existing credit history.
 
 The live smoke test ([`scripts/smokeTest.ts`](contracts/lending_vault/scripts/smokeTest.ts)) checked the following on this deployment:
 1. **New wallets:** a fresh wallet scores 300 and is quoted 150% collateral at the live Chainlink price.
-2. **Live lending, no farming:** it [borrowed](https://sepolia.arbiscan.io/tx/0xa84c1b304033f07e5fa1f0bb1aafc590ed3e4ab9e99050cbf98a5653e7a1df12) 5 test USDC and [repaid it with interest](https://sepolia.arbiscan.io/tx/0x12c681b4441c2b10705e6a14acb0dcd548697bb8074b66c34401449c022dc9e9) straight away. The score stayed at **484 → 484**, because an instant loop earns no credit.
-3. **Portable credit:** a real Aave V3 borrower's history (31 borrows over 617 days; 24 closed loans imported, 5 held under 14 days skipped) was attested, [imported via EIP-712](https://sepolia.arbiscan.io/tx/0x8e516108c4f87fc183792aacbab88847c5d45d0400e2d97f9b3c8cd1a8de2688) and scored **802 (Prime)** by the Stylus engine. Re-importing was rejected with `AlreadyHasHistory`.
+2. **Live lending, no farming:** it [borrowed](https://sepolia.arbiscan.io/tx/0x372fe7a74b8ce25c09abbf7a6d670344bc6c201ef379f3dab40ca4ed74f5d25a) 5 test USDC and [repaid it with interest](https://sepolia.arbiscan.io/tx/0xe05db5a1ec5ea375bb47f7a452dfd6ab73d5dbf24557576417fd7eb4e23f1ed2) straight away. The score stayed at **484 → 484**, because an instant loop earns no credit.
+3. **Portable credit:** a real Aave V3 borrower's history (31 borrows over 617 days; 24 closed loans imported, 5 held under 14 days skipped) was attested, [imported via EIP-712](https://sepolia.arbiscan.io/tx/0x0f7e287164ed04bee067efe3cc01ee889382f5adb0e93fc3ac0bff79292af416) and scored **802 (Prime)** by the Stylus engine. Re-importing was rejected with `AlreadyHasHistory`.
 4. **Parity:** the "Alice" persona scores exactly **812** on-chain, matching the TypeScript model.
 
 ## Architecture
@@ -136,7 +136,7 @@ The live smoke test ([`scripts/smokeTest.ts`](contracts/lending_vault/scripts/sm
 
 ```bash
 cd contracts/stylus_score && cargo test && node build_wasm.mjs   # 11 tests, Stylus-ready WASM
-cd contracts/lending_vault && npm install && npx hardhat test     # 35 tests incl. invariant fuzz
+cd contracts/lending_vault && npm install && npx hardhat test     # 36 tests incl. invariant fuzz
 cd frontend && npm install && npm run dev                          # dashboard + /api/attest
 ```
 

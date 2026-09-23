@@ -229,10 +229,13 @@ contract SolidityScoreEngine is IArbiScoreEngine {
         uint8[] memory statuses,
         uint32[] memory daysLate
     ) external override returns (uint16) {
-        if (msg.sender != owner && !isVault[msg.sender] && msg.sender != importer) {
-            if (msg.sender != user) revert Unauthorized();
+        if (msg.sender == importer) {
+            // Attested imports may only bootstrap wallets that have no ArbiScore history
+            if (_profiles[user].isInitialized) revert InvalidProfile();
+        } else {
+            // Everyone else (the owner included) needs demo mode, and may never rewrite live loans
+            if (msg.sender != user && msg.sender != owner) revert Unauthorized();
             if (!demoMode) revert DemoModeDisabled();
-            // Self-service profiles may not rewrite history that backs a live loan
             StoredLoan[] storage h = _profiles[user].history;
             for (uint256 i = 0; i < h.length; ++i) {
                 if (h[i].status == ArbiScoreModel.LOAN_OPEN) revert HasOpenLoans();

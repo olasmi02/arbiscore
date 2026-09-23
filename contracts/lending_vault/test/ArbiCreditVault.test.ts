@@ -37,6 +37,7 @@ describe("ArbiCreditVault: two-sided USDG credit market", function () {
       await engine.getAddress(), await oracle.getAddress(), await usdg.getAddress(), await weth.getAddress()
     )) as ArbiCreditVault;
     await engine.init(owner.address, await vault.getAddress());
+    await engine.setDemoMode(true); // lets the owner seed test personas; production runs with it off
 
     // Prime (Alice persona, 812), Subprime (Bob persona, 442), Moderate (655)
     await setProfile(prime.address, 540, 140, 48000, [
@@ -238,25 +239,42 @@ describe("ArbiCreditVault: two-sided USDG credit market", function () {
       await vault.connect(prime).borrow(USDG(10_000));
     });
 
-    it("rejects a borrower rewriting their own history while a loan is open (demo mode)", async function () {
-      await engine.setDemoMode(true);
+    it("never rewrites a history backing an open loan: not the borrower, not the owner", async function () {
       await expect(
         engine.connect(prime).setMockProfile(prime.address, 1, 1, 1, [], [], [], [])
       ).to.be.revertedWithCustomError(engine, "HasOpenLoans");
+      await expect(engine.setMockProfile(prime.address, 1, 1, 1, [], [], [], [])).to.be.revertedWithCustomError(
+        engine,
+        "HasOpenLoans"
+      );
+    });
+
+    it("with demo mode off, neither the owner nor a market can write anyone's history", async function () {
+      await engine.setDemoMode(false);
+      await expect(engine.setMockProfile(moderate.address, 1, 1, 1, [], [], [], [])).to.be.revertedWithCustomError(
+        engine,
+        "DemoModeDisabled"
+      );
+      // An approved market has no write access to profiles either
+      await engine.setVault(liquidator.address, true);
+      await expect(
+        engine.connect(liquidator).setMockProfile(moderate.address, 1, 1, 1, [], [], [], [])
+      ).to.be.revertedWithCustomError(engine, "Unauthorized");
     });
 
     it("still liquidates and repays when the engine rejects the outcome update", async function () {
-      // Owner wipes the history, so onLoanClosed(index) reverts inside the engine
-      await engine.setMockProfile(prime.address, 1, 1, 1, [], [], [], []);
+      // Revoke the market, so the engine rejects its onLoanClosed report
+      await engine.setVault(await vault.getAddress(), false);
       await oracle.setEthPriceUSD(ETH(2000));
       await expect(vault.connect(liquidator).liquidate(1))
         .to.emit(vault, "EngineSyncFailed").withArgs(1, prime.address, true)
         .and.to.emit(vault, "LoanLiquidated");
 
       await oracle.setEthPriceUSD(PRICE);
+      await engine.setVault(await vault.getAddress(), true);
       await vault.connect(prime).depositCollateral(ETH(5));
       await vault.connect(prime).borrow(USDG(1_000));
-      await engine.setMockProfile(prime.address, 1, 1, 1, [], [], [], []);
+      await engine.setVault(await vault.getAddress(), false);
       await expect(vault.connect(prime).repay(2)).to.emit(vault, "EngineSyncFailed").and.to.emit(vault, "LoanRepaid");
       expect(await vault.userLockedCollateral(prime.address)).to.equal(0);
     });

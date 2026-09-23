@@ -341,7 +341,9 @@ impl ArbiScoreEngine {
     /// Judge sandbox: replaces a profile with a persona's history (loan i borrowed
     /// `borrowed_days_ago[i]` days ago with a 30-day term; `statuses[i]` 0=open 1=repaid
     /// 2=liquidated; repaid/liquidated loans close `days_late[i]` days after the due date).
-    /// Callable by owner/vault/importer, or by the user for their own address while demo mode is on.
+    /// The importer may write only to wallets with no history. Otherwise demo mode must be on, and
+    /// the caller must be the user or the owner; a history backing an open loan is never rewritten.
+    /// With demo mode off (production), no one can rewrite an existing credit history.
     #[allow(clippy::too_many_arguments)]
     pub fn set_mock_profile(
         &mut self,
@@ -355,15 +357,19 @@ impl ArbiScoreEngine {
         days_late: Vec<u32>,
     ) -> Result<u16, ScoreEngineError> {
         let caller = self.vm().msg_sender();
-        let privileged = caller == self.owner.get() || self.vaults.get(caller) || caller == self.importer.get();
-        if !privileged {
-            if caller != user {
+        if caller == self.importer.get() {
+            // Attested imports may only bootstrap wallets that have no ArbiScore history
+            if self.profiles.getter(user).is_initialized.get() {
+                return Err(ScoreEngineError::InvalidProfile(InvalidProfile {}));
+            }
+        } else {
+            // Everyone else (the owner included) needs demo mode, and may never rewrite live loans
+            if caller != user && caller != self.owner.get() {
                 return Err(ScoreEngineError::Unauthorized(Unauthorized {}));
             }
             if !self.demo_mode.get() {
                 return Err(ScoreEngineError::DemoModeDisabled(DemoModeDisabled {}));
             }
-            // Self-service profiles may not rewrite history that backs a live loan
             let h = &self.profiles.getter(user).history;
             for i in 0..h.len() {
                 if h.getter(i).is_some_and(|e| e.status.get().to::<u8>() == LOAN_OPEN) {

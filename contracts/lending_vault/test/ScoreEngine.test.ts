@@ -65,6 +65,7 @@ describe("ArbiScore v2 model & engine", function () {
     });
 
     it("rejects malformed mock profiles", async function () {
+      await engine.setDemoMode(true);
       await expect(
         engine.setMockProfile(alice.address, 1, 1, 1, [1, 2], [1], [1, 1], [0, 0])
       ).to.be.revertedWithCustomError(engine, "InvalidProfile");

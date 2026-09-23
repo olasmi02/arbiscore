@@ -1,12 +1,12 @@
 # ArbiScore gas benchmark: Stylus (cached) vs Solidity, identical model
 
-Network: `arbitrumSepolia` · 2026-09-22T23:40:45.396Z
+Network: `arbitrumSepolia` · 2026-09-23T09:49:43.342Z
 
 Execution gas only (intrinsic, calldata and L1 data fees subtracted). Best of 3 estimates.
 
 | Loans in history | Score | Solidity `calculateScore` | Stylus `calculateScore` | Ratio | Solidity `onLoanClosed` | Stylus `onLoanClosed` | Ratio |
 |---|---|---|---|---|---|---|---|
-| 0 | 651 | 12269 | 29615 | 0.41x | - | - | - |
-| 8 | 697 | 60576 | 51178 | 1.18x | 81342 | 69202 | 1.18x |
-| 32 | 623 | 212898 | 116916 | 1.82x | 233655 | 134467 | 1.74x |
-| 64 | 594 | 414850 | 203887 | 2.03x | 435719 | 223790 | 1.95x |
+| 0 | 651 | 12264 | 29628 | 0.41x | - | - | - |
+| 8 | 697 | 60545 | 51241 | 1.18x | 81247 | 69343 | 1.17x |
+| 32 | 623 | 212890 | 116952 | 1.82x | 233551 | 134623 | 1.73x |
+| 64 | 594 | 414842 | 203913 | 2.03x | 435637 | 223943 | 1.95x |

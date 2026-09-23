@@ -6,7 +6,7 @@
  *  2. In each market with liquidity (USDG, test USDC): borrow + instant repay pays interest, earns NO credit.
  *  3. Portable credit: a real Aave V3 (Arbitrum One) borrower's history is attested by the API and
  *     imported on-chain through CreditImporter (EIP-712), then scored by the Stylus engine.
- *  4. The Alice persona, written by the owner (demo mode is off), scores exactly 812 on-chain.
+ *  4. The Alice persona, written by the owner (demo mode briefly on, then restored), scores exactly 812.
  */
 import { ethers } from "hardhat";
 import * as fs from "fs";
@@ -114,9 +114,15 @@ async function main() {
 
   console.log("\n[4] Alice persona (written by the owner) parity with the TypeScript model");
   const u3 = await newWallet();
-  await send("setMockProfile(Alice) as owner", engineRead.connect(deployer).setMockProfile(
+  // Profile writes need demo mode (off in production): enable it for this one write, then restore it
+  const ownerEngine = engineRead.connect(deployer);
+  const demoWasOn = await ownerEngine.demoMode();
+  if (!demoWasOn) await send("demo mode on (owner)", ownerEngine.setDemoMode(true));
+  await send("setMockProfile(Alice) as owner", ownerEngine.setMockProfile(
     u3.address, 540, 140, 48_000, ALICE.map((x) => x[0]), ALICE.map((x) => x[1]), ALICE.map((x) => x[2]), ALICE.map(() => 0)
   ));
+  if (!demoWasOn) await send("demo mode off again", ownerEngine.setDemoMode(false));
+  check(!(await engineRead.demoMode()) || demoWasOn, "demo mode restored");
   const [score, tier, ratio] = await engineRead.getScoreAndTier(u3.address);
   check(Number(score) === 812 && tier === 3n && ratio === 10500n, `Stylus score ${score} = TypeScript 812, Prime at 105%`);
 

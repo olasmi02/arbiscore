@@ -7,9 +7,9 @@ import { MarketProvider } from '@/lib/context/MarketContext';
 import { WrongNetworkBanner } from '@/components/web3/WrongNetworkBanner';
 
 export const metadata: Metadata = {
-  title: 'ArbiScore | Adaptive Undercollateralized DeFi Lending on Arbitrum',
+  title: 'ArbiScore | On-chain credit that lowers your collateral',
   description:
-    'Institutional-grade on-chain credit scoring and adaptive DeFi lending vault powered by Arbitrum Stylus Rust inference engine.',
+    'Repayment history scored on-chain by a Rust model on Arbitrum Stylus. Proven borrowers post as little as 105% collateral in the Paxos USDG and test USDC markets.',
 };
 
 export default function RootLayout({

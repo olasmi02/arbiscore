@@ -41,7 +41,7 @@ describe("ArbiScore v2 model & engine", function () {
     it("uninitialized wallets score 300 (Subprime)", async function () {
       expect(await engine.calculateScore(alice.address)).to.equal(300);
       const [score, tier, ratio] = await engine.getScoreAndTier(alice.address);
-      expect([score, tier, ratio]).to.deep.equal([300n, 0n, 15000n]);
+      expect([score, tier, ratio]).to.deep.equal([300n, 0n, 12500n]);
     });
 
     it("demo mode lets a user set only their own profile, and the owner can turn it off", async function () {

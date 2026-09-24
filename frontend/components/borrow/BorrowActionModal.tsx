@@ -94,7 +94,7 @@ export function BorrowActionModal({ isOpen, onClose, quote }: BorrowActionModalP
           )}
 
           <div className="p-3 flex items-center justify-between">
-            <span className="text-zinc-400">Traditional DeFi Baseline (150%)</span>
+            <span className="text-zinc-400">Aave V3 Baseline (125%)</span>
             <span className="text-zinc-500 tabular-nums">
               {quote.traditionalCollateralETH.toFixed(4)} ETH
             </span>

@@ -2,7 +2,7 @@
  * End-to-end smoke test against the live deployment (deployments.json).
  *   ATTEST_API=http://localhost:3000 DEMO_ACCESS_CODE=... npx hardhat run scripts/smokeTest.ts --network arbitrumSepolia
  *
- *  1. A fresh wallet scores 300 (Subprime) and is quoted 150% at the live Chainlink price.
+ *  1. A fresh wallet scores 300 (Subprime) and is quoted 125% (the market rate) at the live Chainlink price.
  *  2. In each market with liquidity (USDG, test USDC): borrow + instant repay pays interest, earns NO credit.
  *  3. Portable credit: a real Aave V3 (Arbitrum One) borrower's history is attested by the API and
  *     imported on-chain through CreditImporter (EIP-712), then scored by the Stylus engine.
@@ -39,7 +39,7 @@ async function main() {
   const vaultRead = await ethers.getContractAt("ArbiCreditVault", C.ArbiCreditVault);
   const usdg = await ethers.getContractAt("MockERC20", C.USDG);
 
-  console.log("\n[1] Fresh wallet → Subprime, 150% at the live Chainlink price");
+  console.log("\n[1] Fresh wallet → Subprime, 125% market rate at the live Chainlink price");
   const u1 = await newWallet();
   const vault = vaultRead.connect(u1);
   const weth = (await ethers.getContractAt("MockERC20", C.MockWETH)).connect(u1);
@@ -50,8 +50,8 @@ async function main() {
   const at = { blockTag: await ethers.provider.getBlockNumber() }; // live feed: read both at one block
   const price = await (await ethers.getContractAt("ChainlinkPriceOracle", C.PriceOracle)).getEthPriceUSD(at);
   const q = await vault.getBorrowQuote(u1.address, 5_000_000n, at);
-  const expected = (5_000_000n * 10n ** 12n * 15000n * 10n ** 18n + 10_000n * price - 1n) / (10_000n * price);
-  check(q.requiredRatioBps === 15000n && q.requiredCollateralWei === expected, `quote: $5 needs ${ethers.formatEther(q.requiredCollateralWei)} ETH at $${ethers.formatEther(price)}/ETH`);
+  const expected = (5_000_000n * 10n ** 12n * 12500n * 10n ** 18n + 10_000n * price - 1n) / (10_000n * price);
+  check(q.requiredRatioBps === 12500n && q.requiredCollateralWei === expected, `quote: $5 needs ${ethers.formatEther(q.requiredCollateralWei)} ETH at $${ethers.formatEther(price)}/ETH`);
 
   console.log("\n[2] Borrow + instant repay in each liquid market (interest paid, no credit earned)");
   const markets = [

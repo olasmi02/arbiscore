@@ -140,12 +140,12 @@ fn exp2_and_isqrt_are_accurate() {
 
 #[test]
 fn tier_boundaries() {
-    assert_eq!(score_to_tier(300), (0, 15000));
-    assert_eq!(score_to_tier(599), (0, 15000));
-    assert_eq!(score_to_tier(600), (1, 13000));
-    assert_eq!(score_to_tier(679), (1, 13000));
-    assert_eq!(score_to_tier(680), (2, 11500));
-    assert_eq!(score_to_tier(749), (2, 11500));
+    assert_eq!(score_to_tier(300), (0, 12500));
+    assert_eq!(score_to_tier(599), (0, 12500));
+    assert_eq!(score_to_tier(600), (1, 11800));
+    assert_eq!(score_to_tier(679), (1, 11800));
+    assert_eq!(score_to_tier(680), (2, 11200));
+    assert_eq!(score_to_tier(749), (2, 11200));
     assert_eq!(score_to_tier(750), (3, 10500));
     assert_eq!(score_to_tier(850), (3, 10500));
 }

@@ -64,9 +64,11 @@ const C_UTILIZATION_NEG: u128 = 400_000;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum RiskTier {
-    Subprime = 0,  // Score < 600   -> 150% Collateral Ratio (15000 bps)
-    Moderate = 1,  // Score 600-679 -> 130% Collateral Ratio (13000 bps)
-    NearPrime = 2, // Score 680-749 -> 115% Collateral Ratio (11500 bps)
+    // Subprime is the market rate: Aave V3 asks 125% for WETH on Arbitrum (80% LTV). Pseudonymous
+    // wallets can always start over, so a score can only lower collateral below the market, never raise it.
+    Subprime = 0,  // Score < 600   -> 125% Collateral Ratio (12500 bps), new wallets start here
+    Moderate = 1,  // Score 600-679 -> 118% Collateral Ratio (11800 bps)
+    NearPrime = 2, // Score 680-749 -> 112% Collateral Ratio (11200 bps)
     Prime = 3,     // Score 750-850 -> 105% Collateral Ratio (10500 bps)
 }
 
@@ -327,10 +329,10 @@ pub fn score_to_tier(score: u16) -> (u8, u16) {
     if score >= 750 {
         (RiskTier::Prime as u8, 10500)
     } else if score >= 680 {
-        (RiskTier::NearPrime as u8, 11500)
+        (RiskTier::NearPrime as u8, 11200)
     } else if score >= 600 {
-        (RiskTier::Moderate as u8, 13000)
+        (RiskTier::Moderate as u8, 11800)
     } else {
-        (RiskTier::Subprime as u8, 15000)
+        (RiskTier::Subprime as u8, 12500)
     }
 }

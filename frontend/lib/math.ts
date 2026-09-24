@@ -16,8 +16,8 @@ export function scoreToTier(score: number): RiskTierInfo {
     return {
       tier: RiskTier.NearPrime,
       name: 'Near-Prime',
-      ratioBps: 11500,
-      ratioPercent: 115,
+      ratioBps: 11200,
+      ratioPercent: 112,
       badgeColor: '#38bdf8',
       bgLight: 'bg-sky-500/10',
       borderColor: 'border-sky-500/30',
@@ -26,8 +26,8 @@ export function scoreToTier(score: number): RiskTierInfo {
     return {
       tier: RiskTier.Moderate,
       name: 'Moderate',
-      ratioBps: 13000,
-      ratioPercent: 130,
+      ratioBps: 11800,
+      ratioPercent: 118,
       badgeColor: '#f59e0b',
       bgLight: 'bg-amber-500/10',
       borderColor: 'border-amber-500/30',
@@ -36,8 +36,8 @@ export function scoreToTier(score: number): RiskTierInfo {
     return {
       tier: RiskTier.Subprime,
       name: 'Subprime',
-      ratioBps: 15000,
-      ratioPercent: 150,
+      ratioBps: 12500, // market rate: Aave V3 WETH on Arbitrum (80% LTV); new wallets start here
+      ratioPercent: 125,
       badgeColor: '#ef4444',
       bgLight: 'bg-rose-500/10',
       borderColor: 'border-rose-500/30',
@@ -81,7 +81,7 @@ export function calculateBorrowQuote(
   const clampedBorrow = Math.max(limits.min, Math.min(limits.max, Math.round(borrowAmountUSD)));
   const tierInfo = scoreToTier(score);
   const requiredRatioBps = BigInt(tierInfo.ratioBps);
-  const traditionalRatioBps = 15000n; // 150%
+  const traditionalRatioBps = 12500n; // market baseline: Aave V3 asks 125% for WETH on Arbitrum (80% LTV)
 
   // BigInt math matching smart contract ArbiCreditVault.sol
   const borrowUSDG = BigInt(clampedBorrow) * 1_000_000n; // 6 decimals

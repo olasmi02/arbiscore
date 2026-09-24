@@ -98,22 +98,23 @@ describe("ArbiCreditVault: two-sided USDG credit market", function () {
       expect(await vault.getFreeCollateral(prime.address)).to.equal(0);
     });
 
-    it("rejects a Subprime borrower at 105% and accepts them at 150%", async function () {
+    it("rejects a Subprime borrower at 105% and accepts them at the 125% market rate", async function () {
+      const marketRate = 4166666666666666667n; // $10,000 at 125% and $3,000/ETH, rounded up like the vault
       await vault.connect(subprime).depositCollateral(ETH(3.5));
       await expect(vault.connect(subprime).borrow(USDG(10_000)))
         .to.be.revertedWithCustomError(vault, "InsufficientFreeCollateral")
-        .withArgs(ETH(3.5), ETH(5));
-      await vault.connect(subprime).depositCollateral(ETH(1.5));
+        .withArgs(ETH(3.5), marketRate);
+      await vault.connect(subprime).depositCollateral(ETH(1));
       await vault.connect(subprime).borrow(USDG(10_000));
-      expect((await vault.loans(1)).collateralLocked).to.equal(ETH(5));
+      expect((await vault.loans(1)).collateralLocked).to.equal(marketRate);
     });
 
-    it("quotes collateral savings vs a 150% baseline per tier", async function () {
+    it("quotes collateral savings vs Aave's 125% baseline per tier", async function () {
       const q = await vault.getBorrowQuote(prime.address, USDG(10_000));
       expect(q.requiredCollateralWei).to.equal(ETH(3.5));
-      expect(q.traditionalCollateralWei).to.equal(ETH(5));
-      expect(q.collateralSavedUSD).to.equal(4500n);
-      expect((await vault.getBorrowQuote(moderate.address, USDG(10_000))).collateralSavedUSD).to.equal(2000n);
+      expect(q.traditionalCollateralWei).to.equal(4166666666666666667n);
+      expect(q.collateralSavedUSD).to.equal(2000n); // 125% - 105% of $10,000
+      expect((await vault.getBorrowQuote(moderate.address, USDG(10_000))).collateralSavedUSD).to.equal(700n); // 125% - 118%
       expect((await vault.getBorrowQuote(subprime.address, USDG(10_000))).collateralSavedUSD).to.equal(0n);
     });
 

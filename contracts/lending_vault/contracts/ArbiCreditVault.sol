@@ -42,7 +42,8 @@ contract ArbiCreditVault is ERC4626, IArbiCreditVault, ReentrancyGuard, Pausable
     // --- Parameters ---
     uint256 public constant LOAN_TERM = 30 days;
     uint256 public constant GRACE_PERIOD = 3 days;
-    uint256 public constant TRADITIONAL_DEFI_RATIO_BPS = 15000;
+    /// Market baseline for comparison: Aave V3 asks 125% collateral for WETH on Arbitrum (80% LTV).
+    uint256 public constant TRADITIONAL_DEFI_RATIO_BPS = 12500;
     uint256 public constant MIN_BORROW_USD = 1; // whole USD
     /// Open loans a borrower may hold at once in this market. Credit accrues per loan, so without
     /// a cap many tiny concurrent loans could build a score faster than real borrowing.
@@ -209,9 +210,9 @@ contract ArbiCreditVault is ERC4626, IArbiCreditVault, ReentrancyGuard, Pausable
     /// @notice Liquidation threshold for a tier (collateral/debt, bps). Always below the borrow ratio.
     function liquidationThresholdBps(uint8 tier) public pure returns (uint16) {
         if (tier >= 3) return 10300; // Prime: borrow 105%
-        if (tier == 2) return 11000; // Near-Prime: borrow 115%
-        if (tier == 1) return 12000; // Moderate: borrow 130%
-        return 13000; // Subprime: borrow 150%
+        if (tier == 2) return 10800; // Near-Prime: borrow 112%
+        if (tier == 1) return 11300; // Moderate: borrow 118%
+        return 11900; // Subprime: borrow 125%, liquidated below 119% like Aave V3 WETH (84% threshold)
     }
 
     /// @notice Liquidator bonus: half the threshold's cushion above 100%, capped at 5%.

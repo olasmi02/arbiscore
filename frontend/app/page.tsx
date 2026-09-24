@@ -67,7 +67,7 @@ export default function DashboardPage() {
               <Layers className="w-4 h-4 text-sky-400" />
               <div>
                 <div className="text-[10px] text-zinc-500 uppercase">Collateral Ratio</div>
-                <div className="font-bold text-white">105% – 150%</div>
+                <div className="font-bold text-white">105% – 125%</div>
               </div>
             </div>
           </div>

@@ -27,14 +27,14 @@ export function DeFiComparisonCard({ quote, onOpenBorrowModal }: DeFiComparisonC
           </div>
 
           <div className="text-xs font-mono font-semibold text-emerald-400">
-            {quote.requiredRatioPercent}% LTV vs 150%
+            {quote.requiredRatioPercent}% collateral vs Aave's 125%
           </div>
         </div>
 
         {/* Primary Headline Metric: Collateral Saved */}
         <div className="mb-6">
           <div className="text-xs font-mono uppercase tracking-wider text-zinc-400 font-semibold mb-1">
-            Collateral Saved vs. Traditional DeFi
+            Collateral Saved vs. Aave V3
           </div>
           <div className="flex items-baseline gap-3">
             <span className="text-3xl sm:text-4xl font-extrabold text-white font-mono tabular-nums tracking-tight">
@@ -57,7 +57,7 @@ export function DeFiComparisonCard({ quote, onOpenBorrowModal }: DeFiComparisonC
               </span>
             ) : (
               <span>
-                Subprime tier requires standard 150% collateral baseline. Repay on-time to unlock 105% Prime tier!
+                Subprime is the market rate: the same 125% Aave V3 asks for WETH. Repay on time to unlock down to 105%.
               </span>
             )}
           </p>
@@ -86,13 +86,13 @@ export function DeFiComparisonCard({ quote, onOpenBorrowModal }: DeFiComparisonC
           <div className="p-3.5 rounded-lg bg-zinc-900/40 border border-zinc-800">
             <div className="flex items-center gap-1.5 text-[11px] font-mono text-zinc-400 font-semibold mb-1">
               <Lock className="w-3.5 h-3.5" />
-              <span>Traditional (150%)</span>
+              <span>Aave V3 (125%)</span>
             </div>
             <div className="text-lg font-bold text-zinc-300 font-mono tabular-nums">
               {quote.traditionalCollateralETH.toFixed(4)} ETH
             </div>
             <div className="text-[11px] text-zinc-500 font-mono tabular-nums mt-0.5">
-              ${(quote.borrowAmountUSD * 1.5).toLocaleString('en-US', { maximumFractionDigits: 0 })}{' '}
+              ${(quote.borrowAmountUSD * 1.25).toLocaleString('en-US', { maximumFractionDigits: 0 })}{' '}
               Collateral
             </div>
           </div>

@@ -244,8 +244,8 @@ library ArbiScoreModel {
 
     function scoreToTier(uint16 score) internal pure returns (uint8 tier, uint16 ratioBps) {
         if (score >= 750) return (3, 10500);
-        if (score >= 680) return (2, 11500);
-        if (score >= 600) return (1, 13000);
-        return (0, 15000);
+        if (score >= 680) return (2, 11200);
+        if (score >= 600) return (1, 11800);
+        return (0, 12500); // market rate (Aave V3 WETH on Arbitrum: 80% LTV); new wallets start here
     }
 }

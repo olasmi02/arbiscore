@@ -7,7 +7,7 @@ ArbiScore is a testnet buildathon project and has **not been audited**. This doc
 | Threat | Protection |
 |---|---|
 | **Wash-borrowing:** pumping a score with instant borrow/repay loops | Repayment credit scales with time outstanding and reaches full weight only at 14 days. Every loan pays interest. Test `instant_borrow_repay_loops_earn_no_credit` shows that 1, 3, 20 or 64 instant loops leave a new wallet's score unchanged (Subprime). |
-| **Wallet-hopping:** abandoning a bad history | A new wallet scores in the Subprime band and borrows at 150%, the same terms as standard DeFi. Throwing history away never gets better terms. |
+| **Wallet-hopping:** abandoning a bad history | A new wallet scores in the Subprime band and borrows at 125%, Aave V3's rate for WETH. Subprime is the market rate by design, so throwing history away never gets better terms than keeping it. |
 | **Erasing history via import** | `CreditImporter` only accepts wallets with **no** ArbiScore history, only the wallet itself can submit its attestation, and attestations expire after 1 hour. Existing records, including liquidations, are final. |
 | **Forged external history** | Attestations are EIP-712 signed by the attester key and verified on-chain. Tampered payloads, wrong signers and expired attestations are rejected (tested). |
 | **Rewriting credit history** | `setMockProfile` is locked down. The importer may write only to wallets with **no** history. Anyone else, **the owner included**, needs demo mode switched on and can never rewrite a history backing an open loan (`HasOpenLoans`). Approved markets have no write access. Demo mode is **off** on the live engine, so no one can rewrite an existing credit history (checked on-chain: owner → `DemoModeDisabled`, market → `Unauthorized`). |
@@ -26,7 +26,7 @@ ArbiScore is a testnet buildathon project and has **not been audited**. This doc
 | Threat | Protection |
 |---|---|
 | Liquidation bonus paid from other users' collateral (the bug in v1) | The bonus comes only from the liquidated borrower's own locked collateral. When that isn't enough, the liquidator repays proportionally less and the shortfall is **bad debt absorbed by lenders** through the ERC-4626 share price. The invariant test checks that the vault's WETH balance always equals the sum of user collateral. |
-| A loan being liquidatable the moment it opens (v1: threshold = borrow ratio) | Per-tier liquidation thresholds sit below the borrow ratios (Prime 105% → 103%, Near-Prime 115% → 110%, Moderate 130% → 120%, Subprime 150% → 130%). The bonus is capped at half the cushion (max 5%). |
+| A loan being liquidatable the moment it opens (v1: threshold = borrow ratio) | Per-tier liquidation thresholds sit below the borrow ratios (Prime 105% → 103%, Near-Prime 112% → 108%, Moderate 118% → 113%, Subprime 125% → 119%, matching Aave V3's WETH liquidation level). The bonus is capped at half the cushion (max 5%). |
 | Share-inflation (donation) attack on the first lender | OpenZeppelin ERC-4626 with `_decimalsOffset() = 6` virtual shares. |
 | Lenders withdrawing funds that are lent out | `maxWithdraw` and `maxRedeem` are capped at idle cash. |
 | Stale or bad price | `ChainlinkPriceOracle` rejects prices ≤ 0, future timestamps, and data older than 24 hours. An optional L2 sequencer-uptime check (with a 1-hour grace period) activates when a feed address is configured; none exists on Arbitrum Sepolia yet. |
@@ -72,5 +72,5 @@ Found through adversarial testing (`contracts/test_vectors/model_properties.ts`,
 
 - The WETH collateral is a test token with a public faucet. The USDG market uses real Paxos testnet USDG; the second market uses a faucet test USDC.
 - The model's coefficients are fitted to Aave V3 (Arbitrum One) liquidation outcomes, with guardrails (`research/fit-weights`). Aave liquidations are a proxy for default, and attested Aave activity/volume is farmable, which is why their weights are capped.
-- The Stylus engine isn't explorer-verified yet. It was deployed with `cargo stylus deploy` 0.10.9 from a pinned Docker build, and explorers don't support that version yet (Arbiscan tops out at 0.10.7). Anyone can confirm the deployed program matches this repository with `cargo stylus verify --deployment-tx 0x74f0a965f1fe5f8400749aefa02183587d3b80d8a59d934da033de9c76fe897f`.
+- The Stylus engine isn't explorer-verified yet. It was deployed with `cargo stylus deploy` 0.10.9 from a pinned Docker build, and explorers don't support that version yet (Arbiscan tops out at 0.10.7). Anyone can confirm the deployed program matches this repository with `cargo stylus verify --deployment-tx 0x866d434d381c6a4e2b8fc60e83fdbec7092cd13239615bda36cd388460c3555d`.
 - The liquidation bonus for Prime borrowers is small (1.5%). On mainnet this may need tuning to keep liquidators interested.

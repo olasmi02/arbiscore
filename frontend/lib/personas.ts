@@ -51,7 +51,7 @@ export const PERSONA_META: Record<PersonaId, PersonaMeta> = {
 };
 
 /** Collateral locked by each persona's currently open loan (matches its tier at origination). */
-const OPEN_LOAN_COLLATERAL_ETH: Record<PersonaId, number> = { alice: 3.5, bob: 1.25, charlie: 2.1667 };
+const OPEN_LOAN_COLLATERAL_ETH: Record<PersonaId, number> = { alice: 3.5, bob: 1.0417, charlie: 1.9667 };
 
 export function initialPersonaLoans(id: PersonaId): SandboxLoan[] {
   return PERSONA_PROFILES[id].loans.map((l, i) =>

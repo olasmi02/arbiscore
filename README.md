@@ -196,21 +196,68 @@ The live smoke test ([`scripts/smokeTest.ts`](contracts/lending_vault/scripts/sm
 
 ## Architecture
 
+```mermaid
+flowchart TB
+    borrower(["Borrower"])
+    lender(["Lender"])
+
+    subgraph sepolia["Arbitrum Sepolia"]
+        importer["CreditImporter<br/>verifies attestation<br/>fresh wallets only"]
+        vaults["ArbiCreditVault × 2<br/>Paxos USDG · test USDC<br/>ERC-4626 · max 3 open loans"]
+        engine[["ArbiScoreEngine<br/>Rust on Stylus<br/>loan history + liquidation index"]]
+        oracle["Chainlink ETH/USD"]
+    end
+
+    subgraph web["Dashboard · Next.js"]
+        direction LR
+        ui["UI + TypeScript model<br/>re-checks every score"]
+        attest["/api/attest<br/>signs Aave history"]
+    end
+
+    subgraph one["Arbitrum One"]
+        aave[("Aave V3 Pool")]
+    end
+
+    borrower -- "attestation" --> importer
+    borrower -- "borrow · repay" --> vaults
+    lender -- "supply · redeem" --> vaults
+    importer -- "imports" --> engine
+    vaults -- "scores · outcomes" --> engine
+    vaults -- "ETH price" --> oracle
+    engine -. "score + history" .-> ui
+    attest -- "reads history" --> aave
 ```
- Browser (Next.js + wagmi/viem)
-   ├─ Sandbox: TypeScript model re-scores editable persona histories (+ time travel)
-   ├─ Live: reads score + history from the engine, re-scores locally → "Independently verified"
-   └─ /api/attest: indexes Aave V3 (Arbitrum One) → EIP-712 attestation
-          │
-          ▼
- CreditImporter ── verify sig, new wallets only ──▶ ┐
-                                                     ▼
- ArbiCreditVault x2 (USDG, test USDC) ─ getScoreAndTier ─▶ ArbiScoreEngine (Rust / Stylus)
-   supply / redeem · deposit / borrow / repay            per-wallet loan history (1 slot/loan)
-   per-tier LTV + liquidation threshold, fixed APR       logistic model over latest 64 loans
-   onLoanOpened / onLoanClosed ─────────────────────────▶ every loan outcome is scored
-   ChainlinkPriceOracle (ETH/USD, staleness checks)
+
+**One borrow, end to end.** The score is computed inside the borrow transaction, so there is no score oracle to feed, stall or forge:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor B as Borrower
+    participant V as ArbiCreditVault
+    participant E as ArbiScoreEngine (Stylus)
+    participant O as Chainlink ETH/USD
+    B->>V: borrow(amount)
+    V->>E: getScoreAndTier(borrower)
+    E-->>V: score, tier, collateral ratio (105–125%)
+    V->>O: ETH price
+    V->>V: check free collateral and open-loan cap,<br/>lock collateral, fix APR for the loan
+    V->>E: onLoanOpened
+    V-->>B: stablecoin
+    Note over B,E: later
+    B->>V: repay(loanId) with interest
+    V->>E: onLoanClosed(repaid)
+    E-->>V: new score (repayments count once held 14+ days)
 ```
+
+| Component | Where | Job |
+|---|---|---|
+| [`ArbiScoreEngine`](contracts/stylus_score/src/lib.rs) | Rust on Stylus | Stores each wallet's loans (one slot each) and scores them with the model in [`scoring.rs`](contracts/stylus_score/src/scoring.rs) |
+| [`ArbiCreditVault`](contracts/lending_vault/contracts/ArbiCreditVault.sol) | Solidity, ×2 | ERC-4626 lending market: tiered collateral, fixed APR, liquidations, reports every outcome to the engine |
+| [`CreditImporter`](contracts/lending_vault/contracts/CreditImporter.sol) | Solidity | Verifies an EIP-712 attestation of Aave history and seeds a fresh wallet's profile |
+| [`ChainlinkPriceOracle`](contracts/lending_vault/contracts/ChainlinkPriceOracle.sol) | Solidity | ETH/USD with staleness and sequencer checks |
+| [`/api/attest`](frontend/app/api/attest/route.ts) | Next.js server | Reads a wallet's Aave V3 history on Arbitrum One and signs it |
+| [`model.ts`](frontend/lib/scoring/model.ts) | Browser | The same model, bit-for-bit, so the dashboard can re-check every on-chain score |
 
 ## Try it (judges)
 

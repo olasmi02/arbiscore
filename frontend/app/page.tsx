@@ -10,6 +10,7 @@ import { LendingPanel } from '@/components/lending/LendingPanel';
 import { ImportCreditCard } from '@/components/credit/ImportCreditCard';
 import { ModeBanner } from '@/components/sandbox/ModeBanner';
 import { TransactionModal } from '@/components/web3/TransactionModal';
+import { WalletBalances } from '@/components/web3/WalletBalances';
 import { useSandbox } from '@/lib/context/SandboxContext';
 import { useCreditVaultTx } from '@/hooks/useCreditVaultTx';
 import { CONTRACT_ADDRESSES, MARKETS, AVAILABLE_MARKETS } from '@/lib/web3/addresses';
@@ -72,6 +73,9 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+
+        {/* Live mode: the connected wallet's own balances */}
+        <WalletBalances />
 
         {/* Section 1: credit evaluation */}
         <CreditScoreCard persona={activePersona} />

@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useAccount, usePublicClient } from 'wagmi';
-import { CONTRACT_ADDRESSES } from '@/lib/web3/addresses';
+import { CONTRACT_ADDRESSES, MARKETS } from '@/lib/web3/addresses';
 import { ARBI_CREDIT_VAULT_ABI, ERC20_ABI, PRICE_ORACLE_ABI, STYLUS_ENGINE_ABI } from '@/lib/web3/abis';
 import { useTxContext } from '@/lib/context/TxContext';
 import { useMarket } from '@/lib/context/MarketContext';
@@ -59,7 +59,8 @@ export interface OnChainBorrower {
   persona: BorrowerPersona;
   collateral: { depositedETH: number; lockedETH: number; freeETH: number };
   lender: { suppliedUSD: number; withdrawableUSD: number };
-  wallet: { stable: number; weth: number }; // stable = the selected market's asset
+  /** stable = the selected market's asset; usdg / usdc / eth are always read, for the balances strip. */
+  wallet: { stable: number; weth: number; usdg: number; usdc: number; eth: number };
   /** Score recomputed in the browser from on-chain history equals the Stylus engine's score. */
   scoreVerified: boolean;
   hasHistory: boolean;
@@ -102,6 +103,11 @@ export function useOnChainBorrower() {
           token(market.asset),
           token(CONTRACT_ADDRESSES.weth),
         ]);
+      const [usdgWallet, usdcWallet, ethWallet] = await Promise.all([
+        token(MARKETS.USDG.asset),
+        token(MARKETS.USDC.asset),
+        c.getBalance({ address: user, ...at }),
+      ]);
       const [suppliedAssets, vaultLoans, debts] = await Promise.all([
         c.readContract({ ...vault, functionName: 'convertToAssets', args: [shares], ...at }),
         Promise.all(loanIds.map((id) => c.readContract({ ...vault, functionName: 'loans', args: [id], ...at }))),
@@ -164,7 +170,7 @@ export function useOnChainBorrower() {
         persona,
         collateral: { depositedETH: eth(deposited), lockedETH: eth(locked), freeETH: eth(deposited - locked) },
         lender: { suppliedUSD: usd(suppliedAssets), withdrawableUSD: usd(withdrawable) },
-        wallet: { stable: usd(usdgBal), weth: eth(wethBal) },
+        wallet: { stable: usd(usdgBal), weth: eth(wethBal), usdg: usd(usdgWallet), usdc: usd(usdcWallet), eth: eth(ethWallet) },
         scoreVerified: !profile.isInitialized || evaluation.score === chainScore,
         hasHistory: profile.isInitialized,
         blockNumber: block.number,

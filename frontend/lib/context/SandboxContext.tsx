@@ -57,7 +57,9 @@ const initialState = (id: PersonaId): PersonaState => ({
 });
 
 export function SandboxProvider({ children }: { children: React.ReactNode }) {
-  const [isSandboxMode, setIsSandboxMode] = useState<boolean>(true);
+  // null = follow the wallet (sandbox when disconnected, live when connected); a boolean = the
+  // user's explicit choice from the header toggle, kept until the wallet connects or disconnects
+  const [sandboxChoice, setSandboxChoice] = useState<boolean | null>(null);
   const [activePersonaId, setActivePersonaId] = useState<PersonaId>('charlie');
   const [simulationNotice, setSimulationNotice] = useState<string | null>(null);
   const [states, setStates] = useState<Record<PersonaId, PersonaState>>(() =>
@@ -66,13 +68,15 @@ export function SandboxProvider({ children }: { children: React.ReactNode }) {
 
   const { isConnected } = useAccount();
   const live = useOnChainBorrower();
+  const isSandboxMode = sandboxChoice ?? !isConnected;
+  const setIsSandboxMode = useCallback((enabled: boolean) => setSandboxChoice(enabled), []);
   const isLiveMode = !isSandboxMode && isConnected;
 
-  // Connecting a wallet switches to the live on-chain view; disconnecting returns to the sandbox.
-  // Only the transition triggers this, so users can still flip back to the sandbox while connected.
+  // Connecting (including an automatic reconnect on page load) shows the live view, and
+  // disconnecting returns to the sandbox; a manual toggle only lasts until the next change.
   const wasConnected = useRef(isConnected);
   useEffect(() => {
-    if (isConnected !== wasConnected.current) setIsSandboxMode(!isConnected);
+    if (isConnected !== wasConnected.current) setSandboxChoice(null);
     wasConnected.current = isConnected;
   }, [isConnected]);
 

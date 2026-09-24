@@ -4,7 +4,7 @@ import { useRef } from 'react';
 import { useAccount, usePublicClient, useWalletClient } from 'wagmi';
 import { getWalletClient } from 'wagmi/actions';
 import { parseEther, parseUnits, maxUint256, type Hash } from 'viem';
-import { CONTRACT_ADDRESSES } from '@/lib/web3/addresses';
+import { CONTRACT_ADDRESSES, MARKETS } from '@/lib/web3/addresses';
 import { ARBI_CREDIT_VAULT_ABI, CREDIT_IMPORTER_ABI, ERC20_ABI } from '@/lib/web3/abis';
 import { describeTxError, KNOWN_ERRORS } from '@/lib/web3/txErrors';
 import { useTxContext } from '@/lib/context/TxContext';
@@ -191,6 +191,19 @@ export function useCreditVaultTx(onSuccessCallback?: () => void) {
         })
     );
 
+  /** Test USDC faucet, whichever market is selected (used by the wallet balances panel). */
+  const claimTestUsdc = () =>
+    run(
+      { sign: 'Claim 1,000 test USDC', pending: 'Minting test USDC...', done: 'Claimed 1,000 test USDC!', failed: 'Faucet Failed' },
+      () =>
+        send({
+          address: MARKETS.USDC.asset,
+          abi: ERC20_ABI,
+          functionName: 'faucet',
+          args: [address!, parseUnits('1000', STABLE_DECIMALS)],
+        })
+    );
+
   /** Test USDC faucet (the USDG market uses real Paxos testnet USDG). */
   const claimTestStable = () =>
     run(
@@ -255,6 +268,7 @@ export function useCreditVaultTx(onSuccessCallback?: () => void) {
     withdrawSupply,
     claimTestWeth,
     claimTestStable,
+    claimTestUsdc,
     importAaveCredit,
   };
 }

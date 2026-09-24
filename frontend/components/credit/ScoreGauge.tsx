@@ -5,9 +5,11 @@ import { GaugeMath, scoreToTier } from '@/lib/math';
 
 interface ScoreGaugeProps {
   score: number;
+  /** The engine has never seen this wallet: show "no score yet" instead of the 300 placeholder. */
+  unscored?: boolean;
 }
 
-export function ScoreGauge({ score }: ScoreGaugeProps) {
+export function ScoreGauge({ score, unscored = false }: ScoreGaugeProps) {
   const clampedScore = Math.max(300, Math.min(850, score));
   const angle = GaugeMath.scoreToAngle(clampedScore);
   const tier = scoreToTier(clampedScore);
@@ -86,11 +88,13 @@ export function ScoreGauge({ score }: ScoreGaugeProps) {
             }}
           >
             {/* Tapered needle pointer pointing up towards 140, 55 */}
-            <polygon
-              points="137,135 143,135 140,55"
-              fill="#fafafa"
-              filter="drop-shadow(0 2px 4px rgba(0,0,0,0.6))"
-            />
+            {!unscored && (
+              <polygon
+                points="137,135 143,135 140,55"
+                fill="#fafafa"
+                filter="drop-shadow(0 2px 4px rgba(0,0,0,0.6))"
+              />
+            )}
             {/* Outer Pivot Cap Hub */}
             <circle
               cx="140"
@@ -148,10 +152,10 @@ export function ScoreGauge({ score }: ScoreGaugeProps) {
       {/* Live readout, below the dial so the needle never covers it */}
       <div className="mt-2 flex flex-col items-center justify-center text-center">
           <div className="text-4xl font-extrabold tracking-tight text-white font-mono tabular-nums leading-none">
-            {clampedScore}
+            {unscored ? '—' : clampedScore}
           </div>
           <div className="text-[11px] font-mono text-zinc-400 mt-1 uppercase tracking-widest">
-            Credit Score
+            {unscored ? 'No score yet · market terms (125%)' : 'Credit Score'}
           </div>
       </div>
     </div>

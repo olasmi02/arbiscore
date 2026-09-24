@@ -15,6 +15,8 @@ interface CreditScoreCardProps {
 
 export function CreditScoreCard({ persona }: CreditScoreCardProps) {
   const { isLiveMode, liveStatus } = useSandbox();
+  // A wallet the engine has never seen reads as 300, a placeholder rather than a model score
+  const unscored = isLiveMode && !liveStatus.loading && !liveStatus.hasHistory;
   return (
     <Card className="shadow-fintech overflow-hidden">
       <CardHeader>
@@ -48,7 +50,7 @@ export function CreditScoreCard({ persona }: CreditScoreCardProps) {
               {liveStatus.scoreVerified ? 'Independently verified' : 'Verification mismatch'}
             </span>
           )}
-          <ScoreBadge score={persona.score} />
+          <ScoreBadge score={persona.score} label={unscored ? 'No score yet' : undefined} />
         </div>
       </CardHeader>
 
@@ -56,7 +58,7 @@ export function CreditScoreCard({ persona }: CreditScoreCardProps) {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
           {/* Left Column: score gauge */}
           <div className="lg:col-span-5 flex flex-col items-center justify-center p-4 rounded-xl bg-zinc-950/40 border border-zinc-800/80">
-            <ScoreGauge score={persona.score} />
+            <ScoreGauge score={persona.score} unscored={unscored} />
             <div className="mt-4 text-center">
               <div className="text-xs font-medium text-zinc-200">
                 Current Borrower: <span className="font-semibold text-white">{persona.name}</span>

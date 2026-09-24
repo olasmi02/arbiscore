@@ -117,6 +117,11 @@ export function useOnChainBorrower() {
         now: block.timestamp,
       });
 
+      // A repayment only builds credit once the loan was held 14+ days (seasoning)
+      const hasSeasonedRepayment = statuses.some(
+        (s, i) => Number(s) === 1 && closeTs[i] > borrowTs[i] && closeTs[i] - borrowTs[i] >= 14n * 86_400n
+      );
+      const hasLiquidation = statuses.some((s) => Number(s) === 2);
       const chainScore = Number(scoreAndTier[0]);
       const tier = scoreToTier(chainScore);
       const nowSec = Number(block.timestamp);
@@ -125,9 +130,11 @@ export function useOnChainBorrower() {
         id: 'wallet',
         name: `${user.slice(0, 6)}…${user.slice(-4)}`,
         title: 'Connected Wallet',
-        tagline: profile.isInitialized
-          ? 'Live credit profile read from the Stylus engine on Arbitrum Sepolia'
-          : 'No credit history yet: import your Aave history, or borrow and repay to build it',
+        tagline: !profile.isInitialized
+          ? 'No score yet: the engine has never seen this wallet, so it gets market terms (125%). Import your Aave history, or repay a loan held 14+ days to start building credit.'
+          : !hasSeasonedRepayment && !hasLiquidation
+            ? 'New borrower: no repayment record yet, so the score sits near the new-borrower baseline (512 with no open debt). Loans held 14+ days and repaid on time build credit; instant repayments do not.'
+            : 'Live credit profile read from the Stylus engine on Arbitrum Sepolia',
         badge: 'Your Wallet',
         score: chainScore,
         tier: tier.name,

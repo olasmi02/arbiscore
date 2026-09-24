@@ -20,5 +20,5 @@ export function quoteAprBps(tier: number, amountUSD: number, totalAssetsUSD: num
 
 /** Liquidation threshold per tier (collateral / debt), mirrors ArbiCreditVault.liquidationThresholdBps. */
 export function liquidationThresholdPercent(tier: number): number {
-  return [130, 120, 110, 103][Math.max(0, Math.min(3, tier))];
+  return [119, 113, 108, 103][Math.max(0, Math.min(3, tier))];
 }

@@ -1,16 +1,16 @@
 {
   "network": "arbitrumSepolia",
   "chainId": 421614,
-  "deployedAt": "2026-09-24T06:24:30.380Z",
+  "deployedAt": "2026-09-24T11:09:12.251Z",
   "contracts": {
-    "ArbiCreditVault": "0x38BA65470F26C804DEE555FD9F4F9c2F0805Fd08",
-    "ArbiCreditVaultUSDC": "0xEd52c7F44bf5ddcD1b512B85CC0aA5C4021084aF",
-    "StylusScoreEngine": "0xC827c39005225ce0B37D481D1d912fEE84442a6d",
-    "CreditImporter": "0xf6A82D50DB3322AAA8C2569Bdc843C991ffEF09f",
-    "PriceOracle": "0x5573d5eb3ea48a47cCdee4A70Df479078c5e6923",
+    "ArbiCreditVault": "0xF476230E26fbcC4a35b63C438bC17eD66f3028ec",
+    "ArbiCreditVaultUSDC": "0x29E235fd9d9b6a2E57621187b83bCa0d3b6eC156",
+    "StylusScoreEngine": "0x299aaedd4d2ecbe068210af3409535052ae83630",
+    "CreditImporter": "0x538f5CB322539165653354b5BCE5Cf15a546485C",
+    "PriceOracle": "0x953DC1aEc8ee9AfCc5435F1f580645DfaEfD4A69",
     "USDG": "0xFFC95faa3d63Cde504a05B567C600B78C0b41892",
-    "TestUSDC": "0x9B303fEfA3947e3094e0c759039281d7e748E413",
-    "MockWETH": "0x20e7ccCa353F65191f954452bdf41602feBdB881",
-    "SolidityScoreEngineBaseline": "0x56AC467514E84Ca1Bd7f4f30bD918F7423EA19f9"
+    "TestUSDC": "0xee9F50950D4099705F165e77589edc6149f0509d",
+    "MockWETH": "0x974a7Cf3BBc6Fd1EE29B61b62729bF7EB9D0E178",
+    "SolidityScoreEngineBaseline": "0x8f7611eB77aF49aA1EC72341AdE6779ff6EbAda6"
   }
 }

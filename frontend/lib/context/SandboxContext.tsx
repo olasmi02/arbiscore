@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useAccount } from 'wagmi';
 import { BorrowerPersona, PersonaId } from '@/lib/types';
-import { PERSONA_META, buildPersona, initialPersonaLoans, type SandboxLoan } from '@/lib/personas';
+import { GRACE_DAYS, PERSONA_META, buildPersona, initialPersonaLoans, type SandboxLoan } from '@/lib/personas';
 import { LOAN_LIQUIDATED, LOAN_OPEN, LOAN_REPAID } from '@/lib/scoring/model';
 import { useOnChainBorrower, type OnChainBorrower } from '@/hooks/useOnChainBorrower';
 
@@ -44,6 +44,8 @@ interface PersonaState {
   depositedETH: number;
   extraDays: number;
 }
+
+const LIQUIDATABLE_NOTE = `On-chain, anyone can liquidate a loan ${GRACE_DAYS} days after its due date; the sandbox lets you repay anyway so you can see the penalty.`;
 
 const SandboxContext = createContext<SandboxContextType | undefined>(undefined);
 
@@ -136,7 +138,7 @@ export function SandboxProvider({ children }: { children: React.ReactNode }) {
         !openLoan
           ? `No open loan to repay, so a new $1,000 loan repaid on time was added. Score ${delta(b, a)}.`
           : late > 0
-            ? `Repayment recorded ${late} days late. Score ${delta(b, a)}: late repayments earn less credit than on-time ones.`
+            ? `Repayment recorded ${late} days late. Score ${delta(b, a)}: repayment credit halves every 5 days late, and the rest counts as a default.${late > GRACE_DAYS ? ` ${LIQUIDATABLE_NOTE}` : ''}`
             : `✓ On-time repayment recorded. Score ${delta(b, a)}, re-scored by the model.`
     );
   }, [update, states, activePersonaId]);
@@ -208,7 +210,7 @@ export function SandboxProvider({ children }: { children: React.ReactNode }) {
           unseasoned
             ? `Loan #${loanId} repaid after ${loan!.borrowedDaysAgo}d. Score ${delta(b, a)}: loans held under 14 days earn little or no credit (blocks wash-borrowing). Try Fast-forward first.`
             : loan !== undefined && loan.borrowedDaysAgo > 30
-              ? `Loan #${loanId} repaid ${loan.borrowedDaysAgo - 30} days late. Score ${delta(b, a)}: late repayments earn less credit.`
+              ? `Loan #${loanId} repaid ${loan.borrowedDaysAgo - 30} days late. Score ${delta(b, a)}: repayment credit halves every 5 days late, and the rest counts as a default.${loan.borrowedDaysAgo - 30 > GRACE_DAYS ? ` ${LIQUIDATABLE_NOTE}` : ''}`
               : `Loan #${loanId} repaid on time. Score ${delta(b, a)}.`
       );
     },

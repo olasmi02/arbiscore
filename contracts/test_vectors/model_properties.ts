@@ -92,9 +92,21 @@ for (let t = 0; t < TRIALS; t++) {
   // R3 A liquidation never beats any repayment of the same loan.
   {
     const at = due + 40n * DAY;
-    const liq = score(w, [...hist, closed(amt, b, LOAN_LIQUIDATED, 10)], at);
-    const late = score(w, [...hist, closed(amt, b, LOAN_REPAID, 10)], at);
-    check('R3 liquidated <= repaid late', liq <= late, () => `amt ${amt}: liquidated ${liq} > repaid late ${late}`);
+    for (const days of [10, 30, 60]) {
+      const liq = score(w, [...hist, closed(amt, b, LOAN_LIQUIDATED, days)], at);
+      const late = score(w, [...hist, closed(amt, b, LOAN_REPAID, days)], at);
+      check('R3 liquidated <= repaid late', liq <= late, () => `amt ${amt}, ${days}d: liquidated ${liq} > repaid late ${late}`);
+    }
+  }
+
+  // R11 A loan repaid 15+ days late never scores above not having taken it at all.
+  {
+    const at = due + 90n * DAY;
+    const never = score(w, hist, at);
+    for (const late of [15, 30, 60, 90]) {
+      const l = score(w, [...hist, closed(amt, b, LOAN_REPAID, late)], at);
+      check('R11 repaid 15+ days late <= never borrowed', l <= never, () => `amt ${amt}: ${late}d late ${l} > never borrowed ${never}`);
+    }
   }
 
   // R4 Adding a liquidation to any history never raises the score.

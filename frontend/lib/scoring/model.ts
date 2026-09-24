@@ -31,7 +31,7 @@ export const LOAN_LIQUIDATED = 2;
 // Model hyper-parameters (fixed-point, S = 1.0)
 export const PARAMS = {
   halfLifeDays: 180n, // recency half-life for loan evidence
-  lateHalfDays: 15n, // repayment credit halves for every 15 days late
+  lateHalfDays: 5n, // repayment credit halves for every 5 days late; the rest counts as a default
   seasonDays: 14n, // a repaid loan earns full weight only after 14 days outstanding (anti wash-borrowing)
   priorWeight: 30n * S, // Beta-prior strength (≈ one fresh $900 loan)
   priorQuality: 600_000n, // prior repayment quality with no evidence (0.60)
@@ -128,6 +128,7 @@ export function computeFeatures(input: ModelInput): Features {
   let W = 0n;
   let G = 0n;
   let L = 0n;
+  let overdueW = 0n; // loans still open past their due date: a default, so they add no depth
   let openPrincipal = 0n;
   let maxRepaid = 0n;
   let overdue = false;
@@ -171,10 +172,13 @@ export function computeFeatures(input: ModelInput): Features {
     if (loan.status === LOAN_REPAID) {
       const lateFp = loan.closeTs > loan.dueTs ? ((loan.closeTs - loan.dueTs) * S) / DAY : 0n;
       const outcome = lateFp === 0n ? S : exp2Neg(lateFp / PARAMS.lateHalfDays);
-      G += (w * outcome) / S;
+      const good = (w * outcome) / S;
+      G += good;
+      L += w - good; // the late part counts as a default
       if (loan.amountUsd > maxRepaid) maxRepaid = loan.amountUsd;
     } else {
       L += w; // liquidated, or open past its due date: full default weight
+      if (loan.status === LOAN_OPEN) overdueW += w;
     }
   }
 
@@ -185,7 +189,7 @@ export function computeFeatures(input: ModelInput): Features {
 
   return {
     quality: ((G + (PARAMS.priorWeight * PARAMS.priorQuality) / S) * S) / (W + PARAMS.priorWeight),
-    depth: sat(W, PARAMS.depthHalf),
+    depth: sat(W - overdueW, PARAMS.depthHalf),
     liquidation: sat(L, PARAMS.liqHalf),
     age: sat(ageDaysFp, PARAMS.ageHalfDays * S),
     activity: sat(input.totalTxs, PARAMS.txHalf),

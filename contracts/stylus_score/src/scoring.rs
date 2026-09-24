@@ -4,8 +4,9 @@
 //! - quality:     Beta-smoothed repayment quality over loans, each weighted by
 //!                recency (2^(-age/180d)) x size (sqrt(amount)) x seasoning (time outstanding,
 //!                full at 14 days); late repayments decay by lateness
-//! - depth:       total weighted evidence, saturating
-//! - liquidation: weighted liquidations (+ half-weight overdue open loans), saturating
+//! - depth:       total weighted evidence, excluding loans still overdue, saturating
+//! - liquidation: weighted liquidations, overdue open loans and the late part of late
+//!                repayments, saturating
 //! - age, activity, volume: wallet longevity / tx count / USD volume, saturating
 //! - utilization: open principal relative to largest loan ever repaid
 //!
@@ -37,7 +38,7 @@ const LOG2E: u128 = 1_442_695;
 
 // Hyper-parameters
 const HALF_LIFE_DAYS: u128 = 180;
-const LATE_HALF_DAYS: u128 = 15;
+const LATE_HALF_DAYS: u128 = 5;
 const SEASON_SECS: u128 = 14 * DAY as u128;
 const PRIOR_WEIGHT: u128 = 30 * S;
 const PRIOR_QUALITY: u128 = 600_000;
@@ -151,6 +152,8 @@ pub struct Accumulator {
     w: u128,
     g: u128,
     l: u128,
+    // Weight of loans still open past their due date: a default, so it adds no depth
+    overdue_w: u128,
     open_principal: u128,
     max_repaid: u128,
     overdue: bool,
@@ -201,13 +204,19 @@ impl Accumulator {
                 0
             };
             let outcome = if late_fp == 0 { S } else { exp2_neg(late_fp / LATE_HALF_DAYS) };
-            self.g += (w * outcome) / S;
+            let good = (w * outcome) / S;
+            self.g += good;
+            // The late part counts as a default, so repaying late never beats repaying on time by much
+            self.l += w - good;
             if amount > self.max_repaid {
                 self.max_repaid = amount;
             }
         } else {
             // Liquidated, or open past its due date: full default weight
             self.l += w;
+            if loan.status == LOAN_OPEN {
+                self.overdue_w += w;
+            }
         }
     }
 
@@ -219,7 +228,7 @@ impl Accumulator {
         };
         Features {
             quality: ((self.g + (PRIOR_WEIGHT * PRIOR_QUALITY) / S) * S) / (self.w + PRIOR_WEIGHT),
-            depth: sat(self.w, DEPTH_HALF),
+            depth: sat(self.w - self.overdue_w, DEPTH_HALF),
             liquidation: sat(self.l, LIQ_HALF),
             age: sat(age_days_fp, AGE_HALF_DAYS * S),
             activity: sat(total_txs as u128, TX_HALF),

@@ -192,6 +192,50 @@ fn instant_borrow_repay_loops_earn_no_credit() {
 }
 
 #[test]
+fn late_repayment_counts_partly_as_a_default() {
+    let first = NOW - 300 * DAY;
+    let base = spec_to_entry(800, 120, LOAN_REPAID, 0, NOW);
+    let score = |extra: &[LoanEntry]| {
+        let mut loans = vec![base];
+        loans.extend_from_slice(extra);
+        compute_score(first, 40, 15_000, &loans, NOW)
+    };
+    let never = score(&[]);
+    for late in [1u64, 3, 15, 30, 50, 90] {
+        let days = 30 + late;
+        let on_time = score(&[spec_to_entry(3_500, days, LOAN_REPAID, 0, NOW)]);
+        let repaid = score(&[spec_to_entry(3_500, days, LOAN_REPAID, late, NOW)]);
+        let overdue = score(&[spec_to_entry(3_500, days, LOAN_OPEN, 0, NOW)]);
+        let liquidated = score(&[spec_to_entry(3_500, days, LOAN_LIQUIDATED, late, NOW)]);
+        assert!(repaid > overdue, "{late}d late: repaying ({repaid}) must beat staying overdue ({overdue})");
+        assert!(repaid < on_time, "{late}d late: {repaid} should score below on time ({on_time})");
+        assert!(repaid >= liquidated, "{late}d late: {repaid} should not score below a liquidation ({liquidated})");
+        if late >= 15 {
+            assert!(repaid < never, "{late}d late: {repaid} should score below never borrowing ({never})");
+        }
+    }
+}
+
+#[test]
+fn repaying_two_months_late_does_not_lift_bob_a_tier() {
+    // Bob borrows another $3,500, lets both loans run ~2 months overdue, then repays both
+    let v = parse_vectors();
+    let (bob_now, first, txs, vol, _, bob_loans) = v[1].clone();
+    let later = NOW + 80 * DAY;
+    let mut loans = bob_loans.clone();
+    loans.push(LoanEntry { amount_usd: 3_500, borrow_ts: NOW, due_ts: NOW + 30 * DAY, close_ts: 0, status: LOAN_OPEN });
+    let overdue = compute_score(first, txs, vol, &loans, later);
+    for l in loans.iter_mut().filter(|l| l.status == LOAN_OPEN) {
+        l.status = LOAN_REPAID;
+        l.close_ts = later;
+    }
+    let repaid = compute_score(first, txs, vol, &loans, later);
+    assert!(repaid > overdue, "repaying must help: {overdue} -> {repaid}");
+    assert!(repaid < bob_now, "two late repayments must not beat Bob's starting score: {bob_now} -> {repaid}");
+    assert_eq!(score_to_tier(repaid).0, RiskTier::Subprime as u8, "still Subprime after repaying late ({repaid})");
+}
+
+#[test]
 fn unpaid_overdue_loan_never_improves_the_score() {
     // Bob-like history fixed at time R; one open $2,500 loan due 18 days after R
     const R: u64 = NOW;

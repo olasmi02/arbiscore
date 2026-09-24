@@ -59,9 +59,13 @@ export function initialPersonaLoans(id: PersonaId): SandboxLoan[] {
   );
 }
 
+/** Days after the due date when anyone may liquidate the loan (the vault's GRACE_PERIOD). */
+export const GRACE_DAYS = 3;
+
 function dueLabel(borrowedDaysAgo: number): string {
   const days = Number(LOAN_TERM_DAYS) - borrowedDaysAgo;
-  return days >= 0 ? `Due in ${days}d` : `${-days}d overdue`;
+  if (days >= 0) return `Due in ${days}d`;
+  return -days > GRACE_DAYS ? `${-days}d overdue · liquidatable` : `${-days}d overdue`;
 }
 
 /** Builds the dashboard view of a persona from its (possibly sandbox-modified) loan history. */

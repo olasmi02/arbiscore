@@ -71,6 +71,16 @@ edge(NOW - 540n * DAY, 140n, 48_000n, [
   specToEntry({ amountUsd: 10_000, borrowedDaysAgo: 45, status: LOAN_OPEN, daysLate: 0 }, NOW),
 ]);
 
+// Late repayments: the late part counts as a default; a loan still overdue adds no depth
+const repaidLate = (amount: number, daysAgo: number, daysLate: number) =>
+  specToEntry({ amountUsd: amount, borrowedDaysAgo: daysAgo, status: LOAN_REPAID, daysLate }, NOW);
+for (const late of [1, 15, 60]) edge(NOW - 300n * DAY, 40n, 15_000n, [repaidLate(800, 120, 0), repaidLate(3_500, 30 + late, late)]);
+edge(NOW - 300n * DAY, 40n, 15_000n, [
+  repaidLate(800, 120, 0),
+  specToEntry({ amountUsd: 3_500, borrowedDaysAgo: 80, status: LOAN_OPEN, daysLate: 0 }, NOW),
+  specToEntry({ amountUsd: 2_500, borrowedDaysAgo: 5, status: LOAN_OPEN, daysLate: 0 }, NOW),
+]);
+
 // Randomized histories, including > MAX_HISTORY loans and very old / very late loans
 for (let c = 0; c < 400; c++) {
   const age = ri(0, 2000);

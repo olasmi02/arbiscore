@@ -28,7 +28,7 @@ library ArbiScoreModel {
     uint8 internal constant LOAN_LIQUIDATED = 2;
 
     uint256 private constant HALF_LIFE_DAYS = 180;
-    uint256 private constant LATE_HALF_DAYS = 15;
+    uint256 private constant LATE_HALF_DAYS = 5;
     uint256 private constant SEASON_SECS = 14 * DAY;
     uint256 private constant PRIOR_WEIGHT = 30 * S;
     uint256 private constant PRIOR_QUALITY = 600_000;
@@ -61,6 +61,7 @@ library ArbiScoreModel {
         uint256 w;
         uint256 g;
         uint256 l;
+        uint256 overdueW; // weight of loans still open past their due date: a default, so it adds no depth
         uint256 openPrincipal;
         uint256 maxRepaid;
         bool overdue;
@@ -145,11 +146,15 @@ library ArbiScoreModel {
             if (loan.status == LOAN_REPAID) {
                 uint256 lateFp = loan.closeTs > loan.dueTs ? ((uint256(loan.closeTs) - loan.dueTs) * S) / DAY : 0;
                 uint256 outcome = lateFp == 0 ? S : exp2Neg(lateFp / LATE_HALF_DAYS);
-                acc.g += (w * outcome) / S;
+                uint256 good = (w * outcome) / S;
+                acc.g += good;
+                // The late part counts as a default
+                acc.l += w - good;
                 if (amount > acc.maxRepaid) acc.maxRepaid = amount;
             } else {
                 // Liquidated, or open past its due date: full default weight
                 acc.l += w;
+                if (loan.status == LOAN_OPEN) acc.overdueW += w;
             }
         }
     }
@@ -164,7 +169,7 @@ library ArbiScoreModel {
             if (volumeUsd > type(uint64).max) volumeUsd = type(uint64).max;
 
             uint256 quality = ((acc.g + (PRIOR_WEIGHT * PRIOR_QUALITY) / S) * S) / (acc.w + PRIOR_WEIGHT);
-            uint256 pos = (C_QUALITY * quality + C_DEPTH * _sat(acc.w, DEPTH_HALF)
+            uint256 pos = (C_QUALITY * quality + C_DEPTH * _sat(acc.w - acc.overdueW, DEPTH_HALF)
                 + C_AGE * _sat(ageDaysFp, AGE_HALF_DAYS * S) + C_ACTIVITY * _sat(totalTxs, TX_HALF)
                 + C_VOLUME * _sat(volumeUsd, VOL_HALF)) / S;
             uint256 neg = C_INTERCEPT_NEG

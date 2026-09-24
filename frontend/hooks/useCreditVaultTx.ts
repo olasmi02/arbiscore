@@ -7,13 +7,14 @@ import { ARBI_CREDIT_VAULT_ABI, CREDIT_IMPORTER_ABI, ERC20_ABI } from '@/lib/web
 import { describeTxError, KNOWN_ERRORS } from '@/lib/web3/txErrors';
 import { useTxContext } from '@/lib/context/TxContext';
 import { useMarket } from '@/lib/context/MarketContext';
+import { arbitrumSepolia } from '@/lib/web3/chains';
 
 export type { TxLifecycleStep, TxStatusState } from '@/lib/context/TxContext';
 
 const STABLE_DECIMALS = 6; // USDG and test USDC
 
 export function useCreditVaultTx(onSuccessCallback?: () => void) {
-  const { address } = useAccount();
+  const { address, chainId } = useAccount();
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
   const { txStatus, setTxStatus, resetTx } = useTxContext();
@@ -48,7 +49,19 @@ export function useCreditVaultTx(onSuccessCallback?: () => void) {
     action: () => Promise<Hash>,
     before?: () => Promise<void>
   ) => {
-    if (!ready) return;
+    // Never fail silently: say why the action can't start
+    if (!ready) {
+      setTxStatus({
+        step: 'failed',
+        actionTitle: titles.failed,
+        errorMessage: !address
+          ? 'Connect a wallet first.'
+          : chainId !== arbitrumSepolia.id
+            ? 'Your wallet is on another network. Switch it to Arbitrum Sepolia (chain 421614) and try again.'
+            : 'Your wallet is still connecting. Try again in a moment.',
+      });
+      return;
+    }
     try {
       if (before) await before();
       setTxStatus({ step: 'signing_action', actionTitle: titles.sign });
@@ -184,8 +197,16 @@ export function useCreditVaultTx(onSuccessCallback?: () => void) {
     );
 
   /** Portable credit: fetch a signed attestation of Aave V3 history and import it on-chain. */
-  const importAaveCredit = (demo?: 'good' | 'bad', code?: string) =>
-    run(
+  const importAaveCredit = (demo?: 'good' | 'bad', code?: string) => {
+    if (demo && !code?.trim()) {
+      setTxStatus({
+        step: 'failed',
+        actionTitle: 'Import Failed',
+        errorMessage: 'The demo imports need the judge access code. Enter it in the box first, or import your own Aave history instead.',
+      });
+      return;
+    }
+    return run(
       { sign: 'Import Aave Credit History', pending: 'Verifying attestation and scoring in Stylus...', done: 'Aave history imported and scored!', failed: 'Import Failed' },
       async () => {
         setTxStatus({ step: 'signing_action', actionTitle: 'Indexing Aave V3 history on Arbitrum One...' });
@@ -213,6 +234,7 @@ export function useCreditVaultTx(onSuccessCallback?: () => void) {
         });
       }
     );
+  };
 
   return {
     txStatus,

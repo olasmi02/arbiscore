@@ -289,7 +289,9 @@ cd frontend && npm install && npm run dev                          # dashboard +
 - `cacheStylus.ts`, then `deploy.ts`
 - `supply.ts`, `smokeTest.ts` and `benchmark.ts`.
 
-**Why the `wasm-opt` step in `Stylus.toml`:** Rust's standard library emits bulk-memory opcodes, which Stylus activation rejects. Binaryen lowers them, and the program compresses to 23.3 KB (limit 24 KB). cargo-stylus replays the same pinned step during `verify`, so the build stays reproducible.
+**Why the `wasm-opt` step in `Stylus.toml`:** Rust's standard library emits bulk-memory opcodes, which Stylus activation rejects. Binaryen lowers them, and the program compresses to 23.7 KB (limit 24 KB). cargo-stylus replays the same pinned step during `verify`, so the build stays reproducible.
+
+**Dashboard RPC:** `NEXT_PUBLIC_ARBITRUM_SEPOLIA_RPC` sets the Arbitrum Sepolia endpoint the dashboard reads through (scores, balances, the Chainlink price, and the simulation before every transaction). It falls back to the public `sepolia-rollup.arbitrum.io` endpoint. The live site uses a dedicated [QuickNode](https://www.quicknode.com/) endpoint from the buildathon's Build-plan credit, because the public endpoint dropped connections under load. It's a `NEXT_PUBLIC_` value, so it ships in the browser bundle. It is therefore referrer-locked to the site's domain in QuickNode, and wallets are always given the public RPC when they add the network (a wallet calls the RPC from its extension, where the referrer lock would reject it). QuickNode isn't used for the Aave import: its `eth_getLogs` range is capped at 10,000 blocks, and the import needs the full range (see `ARBITRUM_ONE_RPC` below).
 
 **Environment variables for `/api/attest`** (server-only):
 - `ATTESTER_PRIVATE_KEY` signs attestations.

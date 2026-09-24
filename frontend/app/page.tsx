@@ -83,8 +83,8 @@ export default function DashboardPage() {
         {/* Section 2b: Lender side of the market */}
         <LendingPanel />
 
-        {/* Section 3: Judge Evaluation Sandbox */}
-        <JudgeSandbox />
+        {/* Section 3: Judge Evaluation Sandbox (sample data only; hidden while viewing a live wallet) */}
+        {!isLiveMode && <JudgeSandbox />}
 
         {/* Section 4: Position Escrow & Active Obligations */}
         <PositionManager />

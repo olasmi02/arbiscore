@@ -93,7 +93,7 @@ Tiers order cleanly by realised risk. Share liquidated within 180 days, in this 
 | **Shipped: fit with guardrails** | **0.724** | **0.705** |
 
 What this does and doesn't show:
-- **The shipped model generalises.** Its ranking quality holds at about 0.72 across both periods.
+- **The shipped model generalises.** Its AUC barely moves between periods: 0.744 in the period it was fitted on, 0.724 on the earlier one.
 - **The guardrails did their job.** The unconstrained fit lost the most (0.750 → 0.661 on at-risk wallets), because it had learned that period's activity patterns.
 - **Fitting did not beat the hand-set weights across periods.** The fitted weights win inside the period they were fitted on (0.744 vs 0.712); on the earlier period the hand-set ones do slightly better (0.735 vs 0.724). So the claim I'm comfortable making is that the model's accuracy is measured and stable, not that fitting improved it.
 - **The tiers still order by risk**, but less sharply: Prime 17.1%, Near-Prime 23.1%, Moderate 24.3%, Subprime 52.0% liquidated.
@@ -279,7 +279,7 @@ sequenceDiagram
 ```bash
 cd contracts/stylus_score && cargo test && cargo stylus check    # 13 tests (Linux/macOS/WSL), activation check
 cd contracts/lending_vault && npm install && npx hardhat test     # 39 tests incl. invariant fuzz
-node --experimental-strip-types contracts/test_vectors/model_properties.ts   # ~117,000 fairness checks on random histories
+node --experimental-strip-types contracts/test_vectors/model_properties.ts   # 102,000 fairness checks on 3,000 random histories
 cd contracts/lending_vault && npx hardhat run scripts/scenarios.ts          # 10 adversarial scenarios on local contracts
 cd frontend && npm install && npm run dev                          # dashboard + /api/attest
 ```
@@ -316,7 +316,7 @@ cd frontend && npm install && npm run dev                          # dashboard +
 - **Sandbox personas are sample data.** They are labelled as such, and live mode shows only on-chain data.
 - **The demo imports use two fixed, public Aave wallets**, not the judge's own history.
 - **Splitting a loan still earns a little extra credit.** Credit per loan grows with the square root of its size, so three $3,333 loans score about 30 points more than one $10,000 loan (773 vs 743). The 3-open-loan cap bounds this. Weighting credit by dollars instead is the fix, but it would require refitting the weights.
-- **The model is fitted to Aave liquidations only.** Aave liquidations stand in for defaults, the sample covers one 180-day window on one venue, and the tier cutoffs are product choices. Refitting as ArbiScore builds its own repayment history needs no contract changes beyond the coefficients.
+- **The model is fitted to Aave liquidations only.** Aave liquidations stand in for defaults, the weights are fitted on one 180-day window (and checked on one earlier window) from one venue, and the tier cutoffs are product choices. Refitting as ArbiScore builds its own repayment history needs no contract changes beyond the coefficients.
 - **The Stylus engine isn't explorer-verified yet.** It was deployed with cargo-stylus 0.10.9, the first version that replays a pinned `wasm-opt` step. Arbiscan's Stylus verifier currently goes up to 0.10.7, and Blockscout's up to 0.6.1. Until they add it, the official `cargo stylus verify` check reproduces the deployed program exactly; see Live deployment.
 
 ## License

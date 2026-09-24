@@ -1,6 +1,6 @@
 import { http, createConfig } from 'wagmi';
 import { injected } from 'wagmi/connectors';
-import { arbitrumSepolia } from './chains';
+import { APP_RPC_URL, arbitrumSepolia } from './chains';
 
 export const wagmiConfig = createConfig({
   chains: [arbitrumSepolia],
@@ -17,7 +17,7 @@ export const wagmiConfig = createConfig({
   ],
   ssr: true,
   transports: {
-    [arbitrumSepolia.id]: http(arbitrumSepolia.rpcUrls.default.http[0], {
+    [arbitrumSepolia.id]: http(APP_RPC_URL, {
       batch: true,
       retryCount: 3,
       retryDelay: 1000,

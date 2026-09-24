@@ -1,5 +1,12 @@
 import { type Chain } from 'viem';
 
+/**
+ * RPC the dashboard itself reads through. It may be a private, referrer-locked endpoint, so it is
+ * never put in the chain definition: wallets add the chain with the public RPC below, and they call
+ * it from the extension, where a referrer-locked endpoint would reject them.
+ */
+export const APP_RPC_URL = process.env.NEXT_PUBLIC_ARBITRUM_SEPOLIA_RPC || 'https://sepolia-rollup.arbitrum.io/rpc';
+
 export const arbitrumSepolia = {
   id: 421614,
   name: 'Arbitrum Sepolia',
@@ -10,10 +17,7 @@ export const arbitrumSepolia = {
   },
   rpcUrls: {
     default: {
-      http: [
-        process.env.NEXT_PUBLIC_ARBITRUM_SEPOLIA_RPC || 'https://sepolia-rollup.arbitrum.io/rpc',
-        'https://arbitrum-sepolia.blockpi.network/v1/rpc/public',
-      ],
+      http: ['https://sepolia-rollup.arbitrum.io/rpc'],
     },
     public: {
       http: ['https://sepolia-rollup.arbitrum.io/rpc'],

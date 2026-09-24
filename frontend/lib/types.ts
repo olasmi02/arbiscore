@@ -88,14 +88,14 @@ export interface BorrowQuote {
   liqThresholdPercent?: number; // collateral/debt ratio below which the loan can be liquidated
 }
 
-export type PersonaId = 'alice' | 'bob' | 'charlie';
+export type PersonaId = 'alice' | 'bob' | 'charlie' | 'dana';
 
 export interface BorrowerPersona {
   id: PersonaId | 'wallet';
   name: string;
   title: string;
   tagline: string;
-  badge: 'Prime Borrower' | 'High-Risk Degen' | 'Fresh / Moderate' | 'Your Wallet';
+  badge: 'Prime Borrower' | 'High-Risk Degen' | 'Fresh / Moderate' | 'One Late Payment' | 'Your Wallet';
   score: number;
   tier: 'Subprime' | 'Moderate' | 'Near-Prime' | 'Prime';
   tierNumber: RiskTierType;

@@ -4,7 +4,7 @@ import React from 'react';
 import { useSandbox } from '@/lib/context/SandboxContext';
 import { PersonaId } from '@/lib/types';
 import clsx from 'clsx';
-import { User, ShieldAlert, Award } from 'lucide-react';
+import { User, ShieldAlert, Award, Clock } from 'lucide-react';
 import { scoreToTier } from '@/lib/math';
 
 export function PersonaSwitcher() {
@@ -18,6 +18,14 @@ export function PersonaSwitcher() {
       score: sandboxPersonas.alice.score,
       tier: `${sandboxPersonas.alice.tier} (${sandboxPersonas.alice.ratioLabel})`,
       icon: Award,
+    },
+    {
+      id: 'dana' as PersonaId,
+      name: 'Dana',
+      title: 'One Late Payment',
+      score: sandboxPersonas.dana.score,
+      tier: `${sandboxPersonas.dana.tier} (${sandboxPersonas.dana.ratioLabel})`,
+      icon: Clock,
     },
     {
       id: 'charlie' as PersonaId,
@@ -38,7 +46,7 @@ export function PersonaSwitcher() {
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
       {personas.map((p) => {
         const isSelected = activePersonaId === p.id;
         const Icon = p.icon;

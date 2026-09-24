@@ -49,7 +49,7 @@ const LIQUIDATABLE_NOTE = `On-chain, anyone can liquidate a loan ${GRACE_DAYS} d
 
 const SandboxContext = createContext<SandboxContextType | undefined>(undefined);
 
-const PERSONA_IDS: PersonaId[] = ['alice', 'bob', 'charlie'];
+const PERSONA_IDS: PersonaId[] = ['alice', 'bob', 'charlie', 'dana'];
 const initialState = (id: PersonaId): PersonaState => ({
   loans: initialPersonaLoans(id),
   depositedETH: PERSONA_META[id].depositedETH,

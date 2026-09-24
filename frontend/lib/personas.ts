@@ -48,10 +48,19 @@ export const PERSONA_META: Record<PersonaId, PersonaMeta> = {
     mockAddress: '0xca711e0000000000000000000000000000000003',
     depositedETH: 5.0,
   },
+  dana: {
+    id: 'dana',
+    name: 'Dana Steady Borrower',
+    title: 'Near-Prime',
+    tagline: '5 repayments over a year, one of them 10 days late; that slip keeps her off Prime',
+    badge: 'One Late Payment',
+    mockAddress: '0xda7a000000000000000000000000000000000004',
+    depositedETH: 6.0,
+  },
 };
 
 /** Collateral locked by each persona's currently open loan (matches its tier at origination). */
-const OPEN_LOAN_COLLATERAL_ETH: Record<PersonaId, number> = { alice: 3.5, bob: 1.0417, charlie: 1.9667 };
+const OPEN_LOAN_COLLATERAL_ETH: Record<PersonaId, number> = { alice: 3.5, bob: 1.0417, charlie: 1.9667, dana: 2.24 };
 
 export function initialPersonaLoans(id: PersonaId): SandboxLoan[] {
   return PERSONA_PROFILES[id].loans.map((l, i) =>
@@ -114,4 +123,5 @@ export const INITIAL_PERSONAS: Record<PersonaId, BorrowerPersona> = {
   alice: buildPersona('alice', initialPersonaLoans('alice')),
   bob: buildPersona('bob', initialPersonaLoans('bob')),
   charlie: buildPersona('charlie', initialPersonaLoans('charlie')),
+  dana: buildPersona('dana', initialPersonaLoans('dana')),
 };

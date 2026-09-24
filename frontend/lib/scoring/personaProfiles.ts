@@ -18,7 +18,7 @@ const loan = (amountUsd: number, borrowedDaysAgo: number, status: number, daysLa
   daysLate,
 });
 
-export const PERSONA_PROFILES: Record<'alice' | 'bob' | 'charlie', PersonaProfile> = {
+export const PERSONA_PROFILES: Record<'alice' | 'bob' | 'charlie' | 'dana', PersonaProfile> = {
   // 8 on-time repayments growing from $2k to $15k over 18 months, one current loan
   alice: {
     ageDays: 540,
@@ -56,5 +56,19 @@ export const PERSONA_PROFILES: Record<'alice' | 'bob' | 'charlie', PersonaProfil
     totalTransactions: 25,
     totalVolumeUSD: 3_000,
     loans: [loan(800, 50, LOAN_REPAID), loan(5_000, 15, LOAN_OPEN)],
+  },
+  // Steady for a year, but one repayment 10 days late about three months ago keeps her off Prime
+  dana: {
+    ageDays: 365,
+    totalTransactions: 80,
+    totalVolumeUSD: 20_000,
+    loans: [
+      loan(1_500, 330, LOAN_REPAID),
+      loan(2_500, 260, LOAN_REPAID),
+      loan(3_000, 200, LOAN_REPAID),
+      loan(4_000, 100, LOAN_REPAID, 10),
+      loan(3_500, 40, LOAN_REPAID),
+      loan(6_000, 8, LOAN_OPEN),
+    ],
   },
 };

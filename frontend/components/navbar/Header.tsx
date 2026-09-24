@@ -36,7 +36,7 @@ export function Header() {
           />
           <div className="flex items-baseline gap-2">
             <span className="text-base sm:text-lg font-bold tracking-tight text-white">ArbiScore</span>
-            <span className="text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700/60 hidden sm:inline-block">
+            <span className="text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700/60 hidden lg:inline-block">
               Stylus Risk Engine
             </span>
           </div>

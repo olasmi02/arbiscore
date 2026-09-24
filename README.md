@@ -100,7 +100,7 @@ What this does and doesn't show:
 
 The next step is to fit on both periods together with a time-based split. Any refit changes the on-chain coefficients and needs a redeploy.
 
-The same model is implemented three times, and all three agree **bit-for-bit** on 419 shared test vectors:
+The same model is implemented three times, and all three agree **bit-for-bit** on 420 shared test vectors:
 - [`scoring.rs`](contracts/stylus_score/src/scoring.rs) is the Stylus engine.
 - [`ArbiScoreModel.sol`](contracts/lending_vault/contracts/ArbiScoreModel.sol) is the Solidity port and gas baseline.
 - [`model.ts`](frontend/lib/scoring/model.ts) powers the sandbox and lets the dashboard independently re-check every on-chain score.
@@ -265,7 +265,7 @@ sequenceDiagram
 ## Try it (judges)
 
 1. Open the dashboard. **Judge Sandbox** is on by default.
-2. Switch between **Alice** (834, Prime), **Charlie** (669, Moderate) and **Bob** (501, Subprime). The borrow calculator's collateral ratio and APR follow each tier.
+2. Switch between the four sample borrowers, one per tier: **Alice** (834, Prime), **Dana** (716, Near-Prime), **Charlie** (669, Moderate) and **Bob** (501, Subprime). The borrow calculator's collateral ratio and APR follow each tier. Dana shows what one late payment costs: the same history repaid on time would score 819, and repaying her open loan on time lifts her to Prime (756).
 3. With Charlie selected, click **Simulate Repayment**. His $5,000 loan closes on time and the model re-scores him **669 → 781**.
 4. To see the anti-farming rule, borrow in the sandbox, repay immediately, and note that the score barely moves. Then **Fast-forward 15 days** and repay again.
 5. To go live, connect MetaMask or Rabby on Arbitrum Sepolia and turn the sandbox off:

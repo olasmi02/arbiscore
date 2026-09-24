@@ -56,6 +56,7 @@ A fixed-point **logistic regression** over seven features computed from the wall
 The weights are fitted to real borrower outcomes on **Aave V3, Arbitrum One** ([`research/fit-weights`](research/fit-weights)), so the model is checked against real defaults rather than asserted:
 
 - **No look-ahead.** Features are computed from each wallet's Aave history up to a cutoff 180 days ago, using the same indexer code as live imports. The label is whether the wallet was **liquidated in the 180 days after**.
+- **A known shock in the window.** The label window (27 March to 23 September 2026) includes the [rsETH exploit](https://governance.aave.com/t/rseth-incident-report-april-20-2026/24580) of 18 April, after which Aave froze WETH on Arbitrum at 0% LTV until about 18 May. That may have shifted liquidation patterns in this sample. My dataset doesn't timestamp liquidations, so I can't separate its effect. The out-of-time check below uses an earlier period that ends before the exploit, and the model holds there.
 - **Sample:** 1,791 borrowers, 683 of them liquidated in that window (liquidations are over-sampled; the base rate is 2.25%).
 - **Fit:** sign-constrained logistic regression. Out-of-sample AUC averaged over 20 random 70/30 splits:
 
@@ -161,7 +162,7 @@ See [`SECURITY.md`](SECURITY.md) for the full threat model and the Slither triag
 - **Liquidations:** the bonus comes only from the borrower's own collateral; any shortfall is bad debt that lenders absorb.
 - **Thresholds:** each tier's liquidation threshold sits below its borrow ratio, so no loan is liquidatable the moment it opens.
 - **Oracle:** Chainlink ETH/USD with staleness checks.
-- **Admin powers:** the engine and oracle can't be changed after deployment, and pausing only blocks new supply and borrows.
+- **Admin powers:** each vault's engine and oracle can't be changed after deployment, and pausing only blocks new supply and borrows. The engine owner can still approve markets and switch demo mode on (never over open loans); see the trust assumptions in `SECURITY.md`.
 - **Share inflation:** ERC-4626 with a virtual-share offset.
 - **Invariant fuzz test:** 150 random actions, checked after every step.
 
@@ -192,7 +193,7 @@ The live smoke test ([`scripts/smokeTest.ts`](contracts/lending_vault/scripts/sm
    - A real Aave V3 borrower with a clean record (31 borrows over ~20 months, 10 repaid positions) was attested, [imported via EIP-712](https://sepolia.arbiscan.io/tx/0xa20ab69f8582d44cb52d0115daf7adad834f643daa7a622637a33cf06f38acac) and scored **818 (Prime, 105%)**.
    - A real borrower who was liquidated on about $34k of debt [imported](https://sepolia.arbiscan.io/tx/0xd824fbd291b895c50f1c406160cb81dbdd4d7f332e593daed4e1318abc058217) at **418 (Subprime, 125%)**.
    - Re-importing was rejected with `AlreadyHasHistory`.
-4. **Parity:** the "Alice" persona scores exactly **834** on-chain, matching the TypeScript model.
+4. **Parity:** the "Alice" persona (written with demo mode briefly switched on, then off again) scores exactly **834** on-chain, matching the TypeScript model.
 
 ## Architecture
 

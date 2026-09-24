@@ -1,6 +1,8 @@
 'use client';
 
+import { useRef } from 'react';
 import { useAccount, usePublicClient, useWalletClient } from 'wagmi';
+import { getWalletClient } from 'wagmi/actions';
 import { parseEther, parseUnits, maxUint256, type Hash } from 'viem';
 import { CONTRACT_ADDRESSES } from '@/lib/web3/addresses';
 import { ARBI_CREDIT_VAULT_ABI, CREDIT_IMPORTER_ABI, ERC20_ABI } from '@/lib/web3/abis';
@@ -8,6 +10,7 @@ import { describeTxError, KNOWN_ERRORS } from '@/lib/web3/txErrors';
 import { useTxContext } from '@/lib/context/TxContext';
 import { useMarket } from '@/lib/context/MarketContext';
 import { arbitrumSepolia } from '@/lib/web3/chains';
+import { wagmiConfig } from '@/lib/web3/config';
 
 export type { TxLifecycleStep, TxStatusState } from '@/lib/context/TxContext';
 
@@ -21,7 +24,9 @@ export function useCreditVaultTx(onSuccessCallback?: () => void) {
   const { market } = useMarket();
   const sym = market.symbol;
 
-  const ready = Boolean(address && walletClient && publicClient);
+  // The wallet client used by the running action. useWalletClient can stay empty for some injected
+  // wallets, so run() falls back to asking the connector for one when the action starts.
+  const clientRef = useRef<NonNullable<typeof walletClient> | null>(null);
 
   /** Ensures the vault may pull `amount` of `token`, prompting an approval if needed. */
   const ensureAllowance = async (token: `0x${string}`, amount: bigint, label: string) => {
@@ -33,7 +38,7 @@ export function useCreditVaultTx(onSuccessCallback?: () => void) {
     });
     if (allowance >= amount) return;
     setTxStatus({ step: 'signing_approval', actionTitle: `Approve ${label}` });
-    const hash = await walletClient!.writeContract({
+    const hash = await clientRef.current!.writeContract({
       address: token,
       abi: ERC20_ABI,
       functionName: 'approve',
@@ -50,18 +55,21 @@ export function useCreditVaultTx(onSuccessCallback?: () => void) {
     before?: () => Promise<void>
   ) => {
     // Never fail silently: say why the action can't start
-    if (!ready) {
-      setTxStatus({
-        step: 'failed',
-        actionTitle: titles.failed,
-        errorMessage: !address
-          ? 'Connect a wallet first.'
-          : chainId !== arbitrumSepolia.id
-            ? 'Your wallet is on another network. Switch it to Arbitrum Sepolia (chain 421614) and try again.'
-            : 'Your wallet is still connecting. Try again in a moment.',
-      });
-      return;
+    const fail = (errorMessage: string) => setTxStatus({ step: 'failed', actionTitle: titles.failed, errorMessage });
+    if (!address) return fail('Connect a wallet first.');
+    if (chainId !== arbitrumSepolia.id)
+      return fail('Your wallet is on another network. Switch it to Arbitrum Sepolia (chain 421614) and try again.');
+    if (!publicClient) return fail('Could not reach Arbitrum Sepolia. Check your connection and try again.');
+    let client = walletClient ?? null;
+    if (!client) {
+      try {
+        client = await getWalletClient(wagmiConfig, { chainId: arbitrumSepolia.id, account: address });
+      } catch (err: any) {
+        console.error('Wallet client unavailable:', err);
+        return fail(`Your wallet did not respond: ${err?.shortMessage ?? err?.message ?? 'unknown error'}. Reconnect the wallet and try again.`);
+      }
     }
+    clientRef.current = client;
     try {
       if (before) await before();
       setTxStatus({ step: 'signing_action', actionTitle: titles.sign });
@@ -91,7 +99,7 @@ export function useCreditVaultTx(onSuccessCallback?: () => void) {
       abi: [...req.abi, ...KNOWN_ERRORS],
       account: address!,
     } as any);
-    return walletClient!.writeContract(request as any);
+    return clientRef.current!.writeContract(request as any);
   };
 
   const vaultWrite = (functionName: string, args: readonly unknown[]) =>

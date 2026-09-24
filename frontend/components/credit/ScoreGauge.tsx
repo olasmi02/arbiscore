@@ -3,11 +3,11 @@
 import React from 'react';
 import { GaugeMath, scoreToTier } from '@/lib/math';
 
-interface FICOGaugeProps {
+interface ScoreGaugeProps {
   score: number;
 }
 
-export function FICOGauge({ score }: FICOGaugeProps) {
+export function ScoreGauge({ score }: ScoreGaugeProps) {
   const clampedScore = Math.max(300, Math.min(850, score));
   const angle = GaugeMath.scoreToAngle(clampedScore);
   const tier = scoreToTier(clampedScore);
@@ -151,7 +151,7 @@ export function FICOGauge({ score }: FICOGaugeProps) {
             {clampedScore}
           </div>
           <div className="text-[11px] font-mono text-zinc-400 mt-1 uppercase tracking-widest">
-            FICO Credit Score
+            Credit Score
           </div>
       </div>
     </div>

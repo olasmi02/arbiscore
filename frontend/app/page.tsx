@@ -73,7 +73,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Section 1: FICO Credit Evaluation Module */}
+        {/* Section 1: credit evaluation */}
         <CreditScoreCard persona={activePersona} />
         <ImportCreditCard />
 

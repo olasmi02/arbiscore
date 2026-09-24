@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Card, CardHeader, CardContent } from '@/components/ui/Card';
-import { FICOGauge } from './FICOGauge';
+import { ScoreGauge } from './ScoreGauge';
 import { ScoreBadge } from './ScoreBadge';
 import { FactorBreakdown } from './FactorBreakdown';
 import { BorrowerPersona } from '@/lib/types';
@@ -54,9 +54,9 @@ export function CreditScoreCard({ persona }: CreditScoreCardProps) {
 
       <CardContent className="space-y-6">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-          {/* Left Column: FICO Gauge */}
+          {/* Left Column: score gauge */}
           <div className="lg:col-span-5 flex flex-col items-center justify-center p-4 rounded-xl bg-zinc-950/40 border border-zinc-800/80">
-            <FICOGauge score={persona.score} />
+            <ScoreGauge score={persona.score} />
             <div className="mt-4 text-center">
               <div className="text-xs font-medium text-zinc-200">
                 Current Borrower: <span className="font-semibold text-white">{persona.name}</span>

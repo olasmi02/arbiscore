@@ -2,7 +2,7 @@
 
 **A credit layer where your repayment history lowers your collateral. The risk model runs in Rust on Arbitrum Stylus, and two lending markets (Paxos USDG and test USDC) share it.**
 
-### ▶ Live app: **[frontend-liard-phi-73.vercel.app](https://frontend-liard-phi-73.vercel.app)**
+### ▶ Live app: **[arbiscore-openhouse.vercel.app](https://arbiscore-openhouse.vercel.app)**
 
 Runs on Arbitrum Sepolia. It opens in a sandbox with sample borrowers; connect a wallet to use the live markets ([how to try it](#try-it-judges)). Built for the Arbitrum Open House Singapore Online Buildathon (2026).
 

@@ -156,7 +156,7 @@ What I chose, what I cut, and why.
 
 ## Paxos USDG
 
-The primary market is built on **Paxos USDG** on Arbitrum Sepolia ([`0xFFC9…1892`](https://sepolia.arbiscan.io/address/0xFFC95faa3d63Cde504a05B567C600B78C0b41892)): lenders supply it, borrowers draw and repay it, and interest accrues in it. Testnet USDG comes from [faucet.paxos.com](https://faucet.paxos.com/). At the time of writing the faucet had stopped paying out, so the USDG pool has no liquidity yet. The second market, **test USDC** (public faucet, seeded with 1,000,000), runs the identical vault code, so live borrowing works either way. Because both markets feed one credit engine, ArbiScore works as a credit layer any market can plug into (`setVault`).
+The primary market is built on **Paxos USDG** on Arbitrum Sepolia ([`0xFFC9…1892`](https://sepolia.arbiscan.io/address/0xFFC95faa3d63Cde504a05B567C600B78C0b41892)): lenders supply it, borrowers draw and repay it, and interest accrues in it. Testnet USDG comes from [faucet.paxos.com](https://faucet.paxos.com/). The faucet stopped paying out for several days during the buildathon; once it resumed, the pool was seeded with 100 USDG, and a fresh wallet [borrowed 5 USDG](https://sepolia.arbiscan.io/tx/0x42523af0d7ae75a3eb7cb62cbf4a99092bf0895013fe68b377d1bd4b25f0d7d5) and [repaid it with interest](https://sepolia.arbiscan.io/tx/0xdc5c2d73442e091b93fa19537daa768b0d2eecf71b0fb671ac35b20c494b5774). The faucet pays 100 USDG per request, so the pool stays small. The second market, **test USDC** (public faucet, seeded with 1,000,000), runs the identical vault code, so live borrowing works either way. Because both markets feed one credit engine, ArbiScore works as a credit layer any market can plug into (`setVault`).
 
 ## Security
 
@@ -302,7 +302,7 @@ cd frontend && npm install && npm run dev                          # dashboard +
 
 **Works today (you can run all of these yourself on Arbitrum Sepolia):**
 - **Borrowing:** borrow against test WETH at your tier's collateral ratio and fixed APR, then repay with interest. The outcome is written into your credit history and re-scored.
-- **Lending:** supply test USDC and earn interest (ERC-4626 shares), then withdraw.
+- **Lending:** supply USDG or test USDC and earn interest (ERC-4626 shares), then withdraw.
 - **Portable credit:** import your own Aave V3 history from Arbitrum One. The two demo borrowers (good and liquidated) are behind the judge access code.
 - **Score checking:** the dashboard re-computes every on-chain score in the browser.
 - **Readable errors:** failed transactions are simulated first and explained in plain language. For example: "this loan needs 0.0563 WETH and you have 0.0000 WETH free".
@@ -312,7 +312,7 @@ cd frontend && npm install && npm run dev                          # dashboard +
 - **Testnet only.**
   - Collateral is **test WETH** from a public faucet. It is priced by the real Chainlink ETH/USD feed.
   - The second market uses **test USDC**.
-  - The **USDG pool has no liquidity** because the Paxos faucet stopped paying out.
+  - The **USDG pool is small** (about 100 USDG): the Paxos faucet pays 100 USDG per request, and it stopped paying out for several days during the buildathon. Larger loans need the test USDC market.
 - **No liquidation UI or keeper bot.** `liquidate()` is implemented and tested, including a 150-step invariant fuzz, but you call it directly; nothing watches positions.
 - **The attester is a single trusted key**, not a storage proof.
 - **Sandbox personas are sample data.** They are labelled as such, and live mode shows only on-chain data.

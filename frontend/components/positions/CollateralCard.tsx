@@ -5,6 +5,7 @@ import { useSandbox } from '@/lib/context/SandboxContext';
 import { useAccount } from 'wagmi';
 import { useCreditVaultTx } from '@/hooks/useCreditVaultTx';
 import { useMarketStats } from '@/hooks/useOnChainBorrower';
+import { useMarket } from '@/lib/context/MarketContext';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { Coins, Plus, Minus, Lock, Unlock, Database } from 'lucide-react';
@@ -13,6 +14,7 @@ export function CollateralCard() {
   const { isSandboxMode, collateralState, depositSimulationCollateral, withdrawSimulationCollateral } =
     useSandbox();
   const { isConnected } = useAccount();
+  const { market } = useMarket();
   const { depositCollateral, withdrawFreeCollateral, txStatus } = useCreditVaultTx();
 
   // Live Chainlink ETH/USD (the price the vault itself uses), refreshed every 30s
@@ -54,6 +56,14 @@ export function CollateralCard() {
             <span className="text-xs font-mono uppercase tracking-wider text-zinc-300 font-semibold">
               Collateral Escrow Vault
             </span>
+            {!isSandboxMode && isConnected && (
+              <span
+                title="Each market holds its own collateral: WETH deposited here only backs loans in this market. Switch markets to see the other one."
+                className="px-2 py-0.5 rounded text-[10px] font-mono border border-zinc-700 bg-zinc-900 text-zinc-300"
+              >
+                {market.label} market
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-2">

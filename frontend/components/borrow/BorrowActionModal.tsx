@@ -138,6 +138,12 @@ export function BorrowActionModal({ isOpen, onClose, quote }: BorrowActionModalP
           <div role="alert" className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300">
             Not enough free collateral: this loan needs {quote.requiredCollateralETH.toFixed(4)} WETH at your tier
             and you have {collateralState.freeETH.toFixed(4)} WETH free. Deposit more WETH or borrow less.
+            {!isSandboxMode && isConnected && (
+              <>
+                {' '}Collateral is held separately in each market, so WETH deposited in the other market doesn&apos;t count here:
+                deposit it in the Collateral Escrow Vault below while <b>{mkt.label}</b> is selected.
+              </>
+            )}
           </div>
         )}
 
